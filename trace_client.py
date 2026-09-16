@@ -1,4 +1,4 @@
-"""trace-client 0.1.0 -- https://github.com/Stephenson-Software/trace-client-python
+"""trace-client 0.2.0 -- https://github.com/Stephenson-Software/trace-client-python
 
 One call to report that a program was used. Copy this file into a project as
 is, or vendor the package; either way there is nothing else to add. Standard
@@ -12,16 +12,44 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import queue
 import threading
-import time
 import urllib.error
 import urllib.request
 from typing import Dict, Mapping, Optional
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 _LOG = logging.getLogger("trace")
+
+#: Environment variables that turn reporting off for every program using a
+#: trace client, checked before the program's own setting. Set
+#: ``TRACE_USAGE_REPORTING=off`` (also ``false``, ``0``, ``no``; case does not
+#: matter) or ``DO_NOT_TRACK=1`` (also ``true``, ``yes``; see
+#: https://consoledonottrack.com).
+ENV_TRACE_USAGE_REPORTING = "TRACE_USAGE_REPORTING"
+ENV_DO_NOT_TRACK = "DO_NOT_TRACK"
+_OFF_VALUES = frozenset(("off", "false", "0", "no"))
+_DO_NOT_TRACK_VALUES = frozenset(("1", "true", "yes"))
+
+#: The values :attr:`TraceClient.disabled_reason` can take. First match wins.
+REASON_ENVIRONMENT = "environment"
+REASON_CONFIG = "config"
+REASON_NO_KEY = "no key"
+
+
+def environment_opts_out(environ: Optional[Mapping[str, str]] = None) -> bool:
+    """Whether the environment asks for usage reporting to be off, via
+    ``TRACE_USAGE_REPORTING=off`` or ``DO_NOT_TRACK=1``. Only the listed
+    values count; anything else (including an empty value) leaves the
+    program's own setting in charge."""
+    env = os.environ if environ is None else environ
+    if env.get(ENV_TRACE_USAGE_REPORTING, "").strip().lower() in _OFF_VALUES:
+        return True
+    if env.get(ENV_DO_NOT_TRACK, "").strip().lower() in _DO_NOT_TRACK_VALUES:
+        return True
+    return False
 
 
 class TraceClient:
@@ -42,8 +70,15 @@ class TraceClient:
       not the host's memory.
 
     Reporting is opt-out: ``enabled=False``, or no key, yields a client that
-    does nothing and costs nothing. Programs that run on other people's
-    machines should expose that switch in their settings and say so once.
+    does nothing and costs nothing. So does the environment: the constructor
+    checks ``TRACE_USAGE_REPORTING=off`` and ``DO_NOT_TRACK=1`` before it
+    looks at ``enabled``, so a user can switch off every trace-reporting
+    program at once. :attr:`disabled_reason` says which of those applied
+    (``"environment"``, ``"config"`` or ``"no key"``; ``None`` when on) so
+    the program can say so in its notice. Programs that run on other
+    people's machines should expose that switch in their settings and say
+    so once, pointing at
+    https://github.com/Stephenson-Software/trace#usage-reporting.
 
     ::
 
@@ -68,13 +103,22 @@ class TraceClient:
         self._key = (key or "").strip()
         self._queue: Optional["queue.Queue[Optional[bytes]]"] = None
         self._thread: Optional[threading.Thread] = None
-        if enabled and self._key:
+        #: Why this client reports nothing: ``"environment"`` (the
+        #: ``TRACE_USAGE_REPORTING`` / ``DO_NOT_TRACK`` variables),
+        #: ``"config"`` (``enabled=False``) or ``"no key"``; ``None`` when it
+        #: reports. Decided once, here, in that order of precedence.
+        self.disabled_reason: Optional[str] = None
+        if environment_opts_out():
+            self.disabled_reason = REASON_ENVIRONMENT
+        elif not enabled:
+            self.disabled_reason = REASON_CONFIG
+        elif not self._key:
+            self.disabled_reason = REASON_NO_KEY
+        if self.disabled_reason is None:
             self._queue = queue.Queue(maxsize=self.QUEUE_CAPACITY)
             self._thread = threading.Thread(target=self._drain, name="trace-client/" + self._application,
                                             daemon=True)
             self._thread.start()
-        self._lock = threading.Lock()
-        self._closing = False
 
     @classmethod
     def disabled(cls) -> "TraceClient":
@@ -83,47 +127,49 @@ class TraceClient:
 
     @property
     def enabled(self) -> bool:
-        """Whether :meth:`report` will actually send anything."""
+        """Whether :meth:`report` will actually send anything. ``False`` after
+        :meth:`close` too; :attr:`disabled_reason` keeps the reason it was
+        built off, if it was."""
         return self._queue is not None
 
     def report(self, name: str, value: Optional[float] = None,
                tags: Optional[Mapping[str, str]] = None) -> None:
         """Report that ``name`` happened, with an optional numeric value and
         optional string tags. Returns immediately; see the class docstring."""
-        if not name or not name.strip():
+        if self._queue is None or not name or not name.strip():
             return
         try:
             body = _json(self._application, name, value, tags)
-            with self._lock:
-                if self._queue is None or self._closing:
-                    return
-                self._queue.put_nowait(body)
+            self._queue.put_nowait(body)
         except queue.Full:
             _LOG.debug("[trace] queue full, dropped %s", name)
         except Exception as failure:  # noqa: BLE001 - a report must never be the reason a program stops
             _LOG.debug("[trace] could not queue %s: %s", name, failure)
 
     def close(self, timeout: float = TIMEOUT_SECONDS) -> None:
-        """Stop accepting new reports and let the sending thread flush any
-        report already queued. Safe to call more than once, and on a disabled
-        client."""
+        """Stop the sending thread, giving reports already queued up to
+        ``timeout`` seconds in total to be sent first. A program that reports
+        and then exits within milliseconds -- a CLI, a short script -- would
+        otherwise lose its one event to the race between queueing it and the
+        sender thread picking it up. The bound still holds: an unreachable
+        server costs at most ``timeout``, never a hang. Safe to call more than
+        once, and on a disabled client."""
         if self._queue is None or self._thread is None:
             return
-        thread = self._thread
-        deadline = time.monotonic() + timeout
-        with self._lock:
-            q = self._queue
-            if q is None:
-                return
-            self._closing = True
+        q, thread = self._queue, self._thread
+        self._queue = None  # report() is a no-op from here on
+        try:
+            q.put_nowait(None)  # sentinel behind whatever is queued
+        except queue.Full:
+            # A full queue means 256 reports are waiting; the sentinel would be
+            # the 257th. Drop the oldest to make room -- one lost report beats a
+            # thread that never stops.
             try:
-                q.put(None, timeout=max(0, deadline - time.monotonic()))
-            except queue.Full:
-                self._closing = False
-                return
-            else:
-                self._queue = None
-        thread.join(max(0, deadline - time.monotonic()))
+                q.get_nowait()
+                q.put_nowait(None)
+            except (queue.Empty, queue.Full):
+                pass
+        thread.join(timeout)
 
     # -- internals --------------------------------------------------------
 

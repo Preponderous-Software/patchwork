@@ -9,13 +9,26 @@ from unittest.mock import patch
 import usage_reporting
 from usage_reporting import (
     DEFAULT_ENDPOINT,
+    DETAILS_URL,
     FIRST_RUN_NOTICE,
+    FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT,
     KEY_ENV_VAR,
     buildClient,
     loadSettings,
     readVersion,
     startUsageReporting,
 )
+
+_ENV_VARS = ("TRACE_USAGE_REPORTING", "DO_NOT_TRACK")
+
+
+def _scrubEnvironment(test):
+    """The machine running the tests may itself have opted out of usage reporting; every
+    test starts from a clean environment and sets what it needs."""
+    scrubbed = {k: v for k, v in os.environ.items() if k not in _ENV_VARS}
+    patcher = patch.dict(os.environ, scrubbed, clear=True)
+    patcher.start()
+    test.addCleanup(patcher.stop)
 
 
 def _stubServer(requests, arrived):
@@ -42,6 +55,7 @@ def _stubServer(requests, arrived):
 
 class TestUsageReportingSettings(unittest.TestCase):
     def setUp(self):
+        _scrubEnvironment(self)
         self.tempDir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempDir.cleanup)
         self.settingsFile = os.path.join(self.tempDir.name, "settings.json")
@@ -67,12 +81,26 @@ class TestUsageReportingSettings(unittest.TestCase):
         self.assertEqual(section, secondRun)
         self.assertEqual([], self.logged, "the notice must not be shown on the second run")
 
-    def test_notice_names_the_program_and_the_opt_out(self):
+    def test_notice_names_the_program_and_every_opt_out(self):
         self.assertIn("patchwork sends a startup event", FIRST_RUN_NOTICE)
-        self.assertIn("trace.danielstephenson.dev", FIRST_RUN_NOTICE)
+        self.assertIn("https://trace.danielstephenson.dev", FIRST_RUN_NOTICE)
         self.assertIn(KEY_ENV_VAR, FIRST_RUN_NOTICE)
         self.assertIn('"enabled": false', FIRST_RUN_NOTICE)
         self.assertIn("settings.json", FIRST_RUN_NOTICE)
+        self.assertIn("TRACE_USAGE_REPORTING=off", FIRST_RUN_NOTICE)
+        self.assertIn(DETAILS_URL, FIRST_RUN_NOTICE)
+        self.assertEqual("https://github.com/Stephenson-Software/trace#usage-reporting", DETAILS_URL)
+        self.assertNotIn("\n", FIRST_RUN_NOTICE)
+
+    def test_first_run_under_an_environment_opt_out_says_reporting_is_off(self):
+        with patch.dict(os.environ, {"DO_NOT_TRACK": "1"}):
+            section = loadSettings(self.settingsFile, self.log)
+
+        self.assertEqual([FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT], self.logged)
+        self.assertIn(DETAILS_URL, FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT)
+        # the environment never rewrites the settings: the block is still the default
+        self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT}, section)
+        self.assertEqual({"usage_reporting": section}, self.readSettingsFile())
 
     def test_existing_settings_without_the_block_are_preserved(self):
         with open(self.settingsFile, "w") as f:
@@ -138,6 +166,7 @@ class TestStartupEvent(unittest.TestCase):
     def setUp(self):
         self.tempDir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempDir.cleanup)
+        _scrubEnvironment(self)
         self.settingsFile = os.path.join(self.tempDir.name, "settings.json")
         self.requests = []
         self.arrived = threading.Event()
@@ -170,6 +199,21 @@ class TestStartupEvent(unittest.TestCase):
         self.assertFalse(client.enabled)
         self.assertFalse(self.arrived.wait(0.3))
         self.assertEqual([], self.requests)
+
+    def test_environment_opt_out_wins_over_enabled_settings_and_a_key(self):
+        with open(self.settingsFile, "w") as f:
+            json.dump({"usage_reporting": {"enabled": True, "endpoint": self.endpoint}}, f)
+
+        for variable, value in (("DO_NOT_TRACK", "1"), ("TRACE_USAGE_REPORTING", "off")):
+            with self.subTest(variable=variable):
+                with patch("usage_reporting.atexit"), \
+                        patch.dict(os.environ, {KEY_ENV_VAR: "test-key", variable: value}):
+                    client = startUsageReporting(self.settingsFile, lambda message: None)
+
+                self.assertFalse(client.enabled)
+                self.assertEqual("environment", client.disabled_reason)
+                self.assertFalse(self.arrived.wait(0.3))
+                self.assertEqual([], self.requests)
 
     def test_start_never_raises_even_if_settings_loading_fails(self):
         with patch("usage_reporting.loadSettings", side_effect=RuntimeError("boom")):
