@@ -12,7 +12,7 @@ This project is part of the [Viron](https://github.com/Preponderous-Software/Vir
 - Modular structure designed for future support of other graphics libraries
 - Clean interface for testing Viron entity placement and behavior
 - **RenderWindow** class for simplified Pygame window management
-- Anonymous usage reporting (a `startup` event with the program name and version) with an opt-out in `settings.json`
+- Anonymous usage reporting (a `startup` event with the program name and version) with an opt-out in `settings.json` or the environment (see [Usage reporting](#usage-reporting))
 
 ## RenderWindow
 
@@ -149,36 +149,6 @@ On Windows, `create_environments.bat` deletes `environments.json` and then invok
 create_environments.bat 25
 ```
 
-### Usage reporting
-
-Patchwork can report that it was started to [trace](https://github.com/Stephenson-Software/trace)
-at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. Exactly one
-`startup` event is sent per launch, carrying only the program name (`patchwork`) and its version
-from `version.txt`. Nothing about the machine, the user, the grid size or the environments is sent.
-The report is made from a background thread, never blocks the program and never raises; if the
-service is unreachable the event is simply dropped.
-
-Reporting is enabled by configuration but requires a runtime key in the
-`PATCHWORK_USAGE_REPORTING_KEY` environment variable; no key is stored in the repository or written
-into `settings.json`. On first launch, the CLI prints a one-line notice and writes the settings
-block below to `settings.json` in the working directory (the same place as `environments.json`),
-after which the notice is not shown again. To opt out, set `enabled` to `false`:
-
-```json
-{
-  "usage_reporting": {
-    "enabled": false,
-    "endpoint": "https://trace.danielstephenson.dev"
-  }
-}
-```
-
-`endpoint` selects the trace server. The program key must be supplied at runtime through
-`PATCHWORK_USAGE_REPORTING_KEY`; if it is absent, no event is sent. The client lives in
-`trace_client.py`, vendored from
-[trace-client-python](https://github.com/Stephenson-Software/trace-client-python) with only the
-header note adjusted for Patchwork, and the settings handling in `usage_reporting.py`.
-
 ### Running the tests
 
 Unit tests live in `tests/` and use only the standard library's `unittest`. They mock Pygame and stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.10 that `main.py` itself needs:
@@ -203,6 +173,45 @@ Run the command from the repository root, so that `main.py` and `render_window.p
 - [ ] Layered rendering and animation
 - [ ] Customizable grid styling
 - [ ] Real-time interaction with live Viron simulations
+
+## Usage reporting
+
+Usage reporting is on by default in configuration, but only sends anything when a program key is
+present at runtime: Patchwork then sends its name (`patchwork`), its version from `version.txt`
+and exactly one `startup` event per launch to [trace](https://github.com/Stephenson-Software/trace)
+at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. Nothing
+about you, your machine, your IP address, the grid size or the environments is sent. The report
+is made from a background thread, never blocks the program and never raises; if the service is
+unreachable the event is simply dropped.
+
+No key is stored in the repository or written into `settings.json`; it must be supplied through
+the `PATCHWORK_USAGE_REPORTING_KEY` environment variable, and without it no event is sent. On
+first launch, the CLI prints a one-line notice and writes the settings block below to
+`settings.json` in the working directory (the same place as `environments.json`), after which the
+notice is not shown again. To turn reporting off, any one of these is enough:
+
+- set `enabled` to `false` in `settings.json`:
+
+  ```json
+  {
+    "usage_reporting": {
+      "enabled": false,
+      "endpoint": "https://trace.danielstephenson.dev"
+    }
+  }
+  ```
+
+- set the environment variable `TRACE_USAGE_REPORTING=off` (also `false`, `0`, `no`), which turns
+  off every program that reports to trace
+- set the environment variable `DO_NOT_TRACK=1` (see [consoledonottrack.com](https://consoledonottrack.com))
+- leave `PATCHWORK_USAGE_REPORTING_KEY` unset
+
+The environment variables win over `settings.json`. `endpoint` selects the trace server. The
+client lives in `trace_client.py`, vendored from
+[trace-client-python](https://github.com/Stephenson-Software/trace-client-python) with only the
+header note adjusted for Patchwork, and the settings handling in `usage_reporting.py`.
+
+Details: https://github.com/Stephenson-Software/trace#usage-reporting
 
 ## 📄 License
 

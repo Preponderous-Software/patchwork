@@ -3,12 +3,16 @@ standard library's own, so the tests have no more dependencies than the
 client does."""
 import json
 import logging
+import os
 import threading
 import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest import mock
 
-from trace_client import TraceClient
+from trace_client import TraceClient, environment_opts_out
+
+_ENV_VARS = ("TRACE_USAGE_REPORTING", "DO_NOT_TRACK")
 
 
 class _Capture:
@@ -16,7 +20,6 @@ class _Capture:
         self.requests = []
         self.reply_status = 201
         self.arrived = threading.Event()
-        self.started = threading.Event()
         self.release = threading.Event()
         self.release.set()  # by default answer at once
 
@@ -26,12 +29,12 @@ def _server(capture):
         def do_POST(self):
             length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(length)
-            capture.started.set()
             capture.release.wait(10)
             capture.requests.append({
                 "path": self.path,
                 "authorization": self.headers.get("Authorization"),
                 "content_type": self.headers.get("Content-Type"),
+                "user_agent": self.headers.get("User-Agent"),
                 "body": body.decode("utf-8"),
             })
             self.send_response(capture.reply_status)
@@ -49,6 +52,12 @@ def _server(capture):
 
 class TraceClientTest(unittest.TestCase):
     def setUp(self):
+        # The machine running the tests may itself have opted out; every
+        # test starts from a clean environment and sets what it needs.
+        scrubbed = {k: v for k, v in os.environ.items() if k not in _ENV_VARS}
+        patcher = mock.patch.dict(os.environ, scrubbed, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.capture = _Capture()
         self.server = _server(self.capture)
         self.base_url = "http://127.0.0.1:%d" % self.server.server_address[1]
@@ -126,6 +135,88 @@ class TraceClientTest(unittest.TestCase):
         self.assertFalse(self.capture.arrived.wait(0.3), "nothing should have been sent")
         self.assertEqual([], self.capture.requests)
 
+    def test_disabled_reason_is_none_when_the_client_reports(self):
+        client = TraceClient(self.base_url, "MyGame", key="k")
+        self.assertTrue(client.enabled)
+        self.assertIsNone(client.disabled_reason)
+        client.close()
+        self.assertFalse(client.enabled, "close() stops reporting")
+        self.assertIsNone(client.disabled_reason, "but the reason describes how it was built")
+
+    def test_disabled_reason_names_the_config_flag_or_the_missing_key(self):
+        self.assertEqual("config", TraceClient(self.base_url, "MyGame", key="k", enabled=False).disabled_reason)
+        self.assertEqual("config", TraceClient.disabled().disabled_reason)
+        self.assertEqual("no key", TraceClient(self.base_url, "MyGame").disabled_reason)
+        self.assertEqual("no key", TraceClient(self.base_url, "MyGame", key="  ").disabled_reason)
+        self.assertEqual("config", TraceClient(self.base_url, "MyGame", enabled=False).disabled_reason,
+                         "the config flag is checked before the key")
+
+    def _assert_environment_disables(self, variable, value):
+        with mock.patch.dict(os.environ, {variable: value}):
+            self.assertTrue(environment_opts_out(), "%s=%r should opt out" % (variable, value))
+            client = TraceClient(self.base_url, "MyGame", key="k")
+            self.assertFalse(client.enabled, "%s=%r should disable the client" % (variable, value))
+            self.assertEqual("environment", client.disabled_reason)
+            client.report("startup")
+            client.close()
+        self.assertFalse(self.capture.arrived.wait(0.2), "%s=%r: nothing should have been sent" % (variable, value))
+        self.assertEqual([], self.capture.requests)
+
+    def test_TRACE_USAGE_REPORTING_off_disables_reporting_for_every_accepted_value(self):
+        for value in ("off", "false", "0", "no", "OFF", "False", "No", " off "):
+            self._assert_environment_disables("TRACE_USAGE_REPORTING", value)
+
+    def test_DO_NOT_TRACK_disables_reporting_for_every_accepted_value(self):
+        for value in ("1", "true", "yes", "TRUE", "Yes", " 1 "):
+            self._assert_environment_disables("DO_NOT_TRACK", value)
+
+    def test_other_environment_values_leave_the_program_setting_in_charge(self):
+        for variable, value in (("TRACE_USAGE_REPORTING", "on"), ("TRACE_USAGE_REPORTING", ""),
+                                ("TRACE_USAGE_REPORTING", "disabled"), ("TRACE_USAGE_REPORTING", "1"),
+                                ("DO_NOT_TRACK", "0"), ("DO_NOT_TRACK", ""), ("DO_NOT_TRACK", "false"),
+                                ("DO_NOT_TRACK", "off")):
+            with mock.patch.dict(os.environ, {variable: value}):
+                self.assertFalse(environment_opts_out(), "%s=%r is not an opt-out" % (variable, value))
+                client = TraceClient(self.base_url, "MyGame", key="k")
+                self.assertTrue(client.enabled, "%s=%r must not disable the client" % (variable, value))
+                self.assertIsNone(client.disabled_reason)
+                client.close()
+        self.assertFalse(environment_opts_out(), "an unset variable is not an opt-out")
+
+    def test_environment_wins_over_the_config_flag_and_over_the_key(self):
+        # enabled=True with a key, and the environment still says no.
+        with mock.patch.dict(os.environ, {"TRACE_USAGE_REPORTING": "off"}):
+            client = TraceClient(self.base_url, "MyGame", key="k", enabled=True)
+            self.assertEqual("environment", client.disabled_reason)
+            client.close()
+        # enabled=False AND the environment: the environment is the reason.
+        with mock.patch.dict(os.environ, {"DO_NOT_TRACK": "1"}):
+            self.assertEqual("environment",
+                             TraceClient(self.base_url, "MyGame", key="k", enabled=False).disabled_reason)
+            self.assertEqual("environment", TraceClient(self.base_url, "MyGame").disabled_reason,
+                             "the environment is checked before the key too")
+        # Once the variable is gone, the program's own setting is back in charge.
+        client = TraceClient(self.base_url, "MyGame", key="k")
+        self.assertTrue(client.enabled)
+        client.report("startup")
+        self.assertTrue(self.capture.arrived.wait(5))
+        client.close()
+
+    def test_environment_opts_out_accepts_an_explicit_mapping(self):
+        self.assertTrue(environment_opts_out({"TRACE_USAGE_REPORTING": "off"}))
+        self.assertTrue(environment_opts_out({"DO_NOT_TRACK": "yes"}))
+        self.assertFalse(environment_opts_out({}))
+        self.assertFalse(environment_opts_out({"DO_NOT_TRACK": "0", "TRACE_USAGE_REPORTING": "on"}))
+
+    def test_user_agent_names_the_client_version(self):
+        from trace_client import __version__
+        self.assertEqual("0.2.0", __version__)
+        client = TraceClient(self.base_url, "MyGame", key="k")
+        client.report("startup")
+        self.assertTrue(self.capture.arrived.wait(5))
+        client.close()
+        self.assertEqual("trace-client-python/0.2.0 (MyGame)", self.capture.requests[0]["user_agent"])
+
     def test_report_ignores_a_blank_name(self):
         client = TraceClient(self.base_url, "MyGame", key="k")
         client.report("")
@@ -155,6 +246,25 @@ class TraceClientTest(unittest.TestCase):
         self.capture.release.set()
         client.close()
 
+    def test_close_sends_what_was_just_queued_before_stopping(self):
+        # A CLI reports once and exits at once. Without draining, the event
+        # races the sender thread and is lost a good fraction of the time;
+        # 30 back-to-back report()+close() pairs make that fraction visible.
+        for i in range(30):
+            client = TraceClient(self.base_url, "MyCli", key="k")
+            client.report("startup", tags={"run": str(i)})
+            client.close()
+        self.assertEqual(30, len(self.capture.requests), "every report()+close() pair must deliver")
+
+    def test_close_still_returns_within_the_timeout_when_the_server_hangs(self):
+        self.capture.release.clear()  # never answers
+        client = TraceClient(self.base_url, "MyCli", key="k")
+        client.report("startup")
+        before = time.monotonic()
+        client.close(timeout=1.0)
+        self.assertLess(time.monotonic() - before, 2.0, "draining must be bounded by the timeout")
+        self.capture.release.set()
+
     def test_close_is_prompt_and_idempotent(self):
         client = TraceClient(self.base_url, "MyGame", key="k")
         client.report("startup")
@@ -163,44 +273,6 @@ class TraceClientTest(unittest.TestCase):
         client.close()
         self.assertLess(time.monotonic() - before, TraceClient.TIMEOUT_SECONDS + 1)
         self.assertFalse(client.enabled)
-
-    def test_close_flushes_reports_already_queued(self):
-        self.capture.release.clear()
-        client = TraceClient(self.base_url, "MyGame", key="k")
-        client.report("first")
-        self.assertTrue(self.capture.started.wait(5), "the first report should start sending")
-        client.report("second")
-
-        closer = threading.Thread(target=client.close)
-        closer.start()
-        time.sleep(0.1)
-        self.capture.release.set()
-        closer.join(5)
-
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline and len(self.capture.requests) < 2:
-            time.sleep(0.05)
-
-        self.assertEqual(["first", "second"],
-                         [json.loads(request["body"])["name"] for request in self.capture.requests])
-
-    def test_close_can_be_retried_if_the_queue_is_full(self):
-        self.capture.release.clear()
-        client = TraceClient(self.base_url, "MyGame", key="k")
-        client.report("first")
-        self.assertTrue(self.capture.started.wait(5), "the first report should start sending")
-        for index in range(TraceClient.QUEUE_CAPACITY):
-            client.report("queued-%d" % index)
-
-        client.close(timeout=0.01)
-
-        self.assertTrue(client.enabled)
-        self.assertIsNotNone(client._queue)
-
-        self.capture.release.set()
-        client.close()
-
-        self.assertIsNone(client._queue)
 
 
 if __name__ == "__main__":
