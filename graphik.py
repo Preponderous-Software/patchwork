@@ -11,17 +11,14 @@ graphiklibversion = "0.2-alpha-1"
 #  @author Daniel McCoy Stephenson
 #  @since February 3rd, 2022
 class Graphik:
-    def __init__(self):
-        displayWidth = 900
-        displayHeight = 600
-        self.gameDisplay = pygame.display.set_mode((displayWidth, displayHeight))
-
-        self.version = graphiklibversion
-
     def __init__(self, gameDisplay):
         self.gameDisplay = gameDisplay
 
         self.version = graphiklibversion
+
+        # whether the mouse button was already down the last time each button was drawn,
+        # keyed by the button's rectangle, so that a held click fires its function only once
+        self.buttonPressStates = {}
 
     def getGameDisplay(self):
         return self.gameDisplay
@@ -42,10 +39,14 @@ class Graphik:
     def drawButton(self, xpos, ypos, width, height, colorBox, colorText, sizeText, text, function):
         self.drawRectangle(xpos, ypos, width, height, colorBox)
         self.drawText(text, xpos + (width//2), ypos + (height//2), sizeText, colorText)
-        
-        # if clicked then do function
-        mouse = pygame.mouse.get_pos()
-        if (xpos + width > mouse[0] > xpos and ypos + height > mouse[1] > ypos):
-            click = pygame.mouse.get_pressed()
-            if click[0] == 1:
+
+        # if clicked then do function - only on the frame the mouse button goes down over the
+        # box, not on every frame it is held there, since this is called once per frame
+        buttonKey = (xpos, ypos, width, height)
+        wasPressed = self.buttonPressStates.get(buttonKey, False)
+        isPressed = pygame.mouse.get_pressed()[0] == 1
+        self.buttonPressStates[buttonKey] = isPressed
+        if isPressed and not wasPressed:
+            mouse = pygame.mouse.get_pos()
+            if (xpos + width > mouse[0] > xpos and ypos + height > mouse[1] > ypos):
                 function()
