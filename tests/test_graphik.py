@@ -1,3 +1,4 @@
+import ast
 import inspect
 import unittest
 from unittest.mock import MagicMock, patch
@@ -19,9 +20,11 @@ class TestConstruction(GraphikTestCase):
     """Regression coverage for the shadowed no-argument constructor (#20)."""
 
     def test_exactly_one_init_is_defined(self):
-        source = inspect.getsource(self.Graphik)
+        classNode = ast.parse(inspect.getsource(self.Graphik)).body[0]
 
-        self.assertEqual(source.count("def __init__"), 1)
+        initDefinitions = [node for node in classNode.body
+                           if isinstance(node, ast.FunctionDef) and node.name == "__init__"]
+        self.assertEqual(len(initDefinitions), 1)
 
     def test_construction_with_a_display_keeps_it(self):
         graphik = self.Graphik(self.surface)
