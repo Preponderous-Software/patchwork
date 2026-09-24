@@ -9,6 +9,7 @@ from unittest.mock import patch
 import usage_reporting
 from usage_reporting import (
     DEFAULT_ENDPOINT,
+    DEFAULT_KEY,
     DETAILS_URL,
     FIRST_RUN_NOTICE,
     FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT,
@@ -71,7 +72,7 @@ class TestUsageReportingSettings(unittest.TestCase):
     def test_first_run_writes_defaults_and_shows_the_notice_once(self):
         section = loadSettings(self.settingsFile, self.log)
 
-        self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT}, section)
+        self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}, section)
         self.assertEqual([FIRST_RUN_NOTICE], self.logged)
         self.assertEqual({"usage_reporting": section}, self.readSettingsFile())
 
@@ -82,9 +83,9 @@ class TestUsageReportingSettings(unittest.TestCase):
         self.assertEqual([], self.logged, "the notice must not be shown on the second run")
 
     def test_notice_names_the_program_and_every_opt_out(self):
-        self.assertIn("patchwork sends a startup event", FIRST_RUN_NOTICE)
+        self.assertTrue(FIRST_RUN_NOTICE.startswith("Usage reporting is on: patchwork sends"))
+        self.assertIn("environment-created", FIRST_RUN_NOTICE)
         self.assertIn("https://trace.danielstephenson.dev", FIRST_RUN_NOTICE)
-        self.assertIn(KEY_ENV_VAR, FIRST_RUN_NOTICE)
         self.assertIn('"enabled": false', FIRST_RUN_NOTICE)
         self.assertIn("settings.json", FIRST_RUN_NOTICE)
         self.assertIn("TRACE_USAGE_REPORTING=off", FIRST_RUN_NOTICE)
@@ -99,7 +100,7 @@ class TestUsageReportingSettings(unittest.TestCase):
         self.assertEqual([FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT], self.logged)
         self.assertIn(DETAILS_URL, FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT)
         # the environment never rewrites the settings: the block is still the default
-        self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT}, section)
+        self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}, section)
         self.assertEqual({"usage_reporting": section}, self.readSettingsFile())
 
     def test_existing_settings_without_the_block_are_preserved(self):
@@ -138,17 +139,28 @@ class TestUsageReportingSettings(unittest.TestCase):
         with open(self.settingsFile, "r") as f:
             self.assertEqual("{not json", f.read(), "a broken settings file must not be overwritten")
 
-    def test_missing_endpoint_and_key_fall_back_to_the_defaults(self):
+    def test_missing_endpoint_and_key_fall_back_to_the_shipped_defaults(self):
+        # a settings.json written before the key shipped has no "key" entry and still reports
         client = buildClient({"enabled": True})
 
-        self.assertFalse(client.enabled)
+        self.assertTrue(client.enabled)
         self.assertEqual(DEFAULT_ENDPOINT + "/api/metrics", client._endpoint)
-        self.assertEqual("", client._key)
+        self.assertEqual(DEFAULT_KEY, client._key)
+        # nothing was reported, so close() sends nothing to the real service
         client.close()
 
-    def test_runtime_key_enables_reporting_without_writing_it_to_settings(self):
+    def test_a_key_is_shipped(self):
+        self.assertEqual(43, len(DEFAULT_KEY))
+
+    def test_settings_key_wins_over_the_shipped_key(self):
+        client = buildClient({"enabled": True, "key": "settings-key"})
+
+        self.assertEqual("settings-key", client._key)
+        client.close()
+
+    def test_environment_key_overrides_settings_and_the_shipped_key(self):
         with patch.dict(os.environ, {KEY_ENV_VAR: "runtime-key"}):
-            client = buildClient({"enabled": True})
+            client = buildClient({"enabled": True, "key": "settings-key"})
 
         self.assertTrue(client.enabled)
         self.assertEqual("runtime-key", client._key)
