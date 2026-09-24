@@ -11,14 +11,18 @@ APPLICATION = "patchwork"
 SETTINGS_FILE = "settings.json"
 SETTINGS_SECTION = "usage_reporting"
 DEFAULT_ENDPOINT = "https://trace.danielstephenson.dev"
+# The program key patchwork ships with. Keys identify a program rather than
+# guard anything (trace's ADR 0001), so it lives here and in settings.json in
+# the open. PATCHWORK_USAGE_REPORTING_KEY, when set, overrides both.
+DEFAULT_KEY = "oAMBqZC_yjTIqlB86_O7G4ZZ3gWuGBCBLJLFbUuFaoU"
 KEY_ENV_VAR = "PATCHWORK_USAGE_REPORTING_KEY"
 VERSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
 
 DETAILS_URL = "https://github.com/Stephenson-Software/trace#usage-reporting"
 
 FIRST_RUN_NOTICE = (
-    "Usage reporting is available: when PATCHWORK_USAGE_REPORTING_KEY is set, patchwork sends "
-    "a startup event (program name and version only) to https://trace.danielstephenson.dev - "
+    "Usage reporting is on: patchwork sends its name and version at startup and an "
+    "environment-created event to https://trace.danielstephenson.dev - "
     "nothing about you, your machine or the environments. "
     'Turn it off with "usage_reporting": {"enabled": false} in settings.json, or for every '
     "trace-reporting program with the environment variable TRACE_USAGE_REPORTING=off. "
@@ -26,7 +30,7 @@ FIRST_RUN_NOTICE = (
 )
 
 # Shown on the first run instead when TRACE_USAGE_REPORTING=off or DO_NOT_TRACK=1 is already
-# set: settings.json still gets its block, but saying reporting is available would mislead.
+# set: settings.json still gets its block, but saying reporting is on would mislead.
 FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT = "Usage reporting is off (environment). Details: " + DETAILS_URL
 
 
@@ -39,7 +43,7 @@ def firstRunNotice():
 
 def defaultSettings():
     """The usage_reporting block written to settings.json on first run."""
-    return {"enabled": True, "endpoint": DEFAULT_ENDPOINT}
+    return {"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}
 
 
 def readVersion(versionFile=VERSION_FILE):
@@ -98,7 +102,9 @@ def buildClient(section, log=print):
         return TraceClient.disabled()
     enabled = section.get("enabled", True)
     endpoint = section.get("endpoint") or DEFAULT_ENDPOINT
-    key = os.environ.get(KEY_ENV_VAR, "").strip()
+    # PATCHWORK_USAGE_REPORTING_KEY first, then the settings block, then the shipped key: a
+    # settings.json written before the key shipped has no "key" entry and still reports.
+    key = os.environ.get(KEY_ENV_VAR, "").strip() or str(section.get("key") or "").strip() or DEFAULT_KEY
     try:
         return TraceClient(endpoint, APPLICATION, key=key, enabled=bool(enabled))
     except ValueError as e:

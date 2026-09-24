@@ -82,8 +82,7 @@ def main(gridSize=defaultGridSize, exitAfterCreate=False, locationService=None, 
         environmentService (EnvironmentService): The environment service to use, or None to build one
         reportUsage (bool): Whether to start usage reporting for this process
     """
-    if reportUsage:
-        startUsageReporting(log=log)
+    usage = startUsageReporting(log=log) if reportUsage else None
     if locationService is None:
         locationService = LocationService(url, port)
     if environmentService is None:
@@ -133,6 +132,8 @@ def main(gridSize=defaultGridSize, exitAfterCreate=False, locationService=None, 
         }
         with open(env_file, "w") as f:
             json.dump(environments, f, indent=2)
+        if usage is not None:
+            usage.report("environment-created")
         log(f"Created new environment with id {environment.getEnvironmentId()} in {end_time - start_time:.2f} seconds.")
 
         if exitAfterCreate:

@@ -243,6 +243,19 @@ class TestUsageReporting(MainTestCase):
 
         self.mockStartUsageReporting.assert_called_once_with(log=main.log)
 
+    def test_creating_an_environment_reports_environment_created(self):
+        self.runMain(gridSize=10, reportUsage=True)
+
+        client = self.mockStartUsageReporting.return_value
+        client.report.assert_called_once_with("environment-created")
+
+    def test_loading_a_cached_environment_reports_nothing_further(self):
+        self.writeCacheFile({"1x10": {"environment_id": 42, "grid_size": 10, "num_grids": 1}})
+
+        self.runMain(gridSize=10, reportUsage=True)
+
+        self.mockStartUsageReporting.return_value.report.assert_not_called()
+
 
 class TestCliEntrypoint(unittest.TestCase):
     def test_module_entrypoint_enables_usage_reporting(self):
