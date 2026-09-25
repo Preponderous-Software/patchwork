@@ -187,6 +187,7 @@ def runScenario(name, gridSize, frames, exitAfterCreate, cachedEnvironment):
         except Exception:
             print(f"FAIL {name}: main() raised")
             traceback.print_exc()
+            pygame.quit()
             return False
         finally:
             os.chdir(previousDirectory)
