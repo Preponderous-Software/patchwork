@@ -151,13 +151,29 @@ create_environments.bat 25
 
 ### Running the tests
 
-Unit tests live in `tests/` and use only the standard library's `unittest`. They mock Pygame and stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.10 that `main.py` itself needs:
+Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Most tests also mock Pygame; the exception is `tests/test_headless_run.py`, which runs the headless harness described below against the real Pygame using SDL's dummy drivers. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.10 that `main.py` itself needs:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
 Run the command from the repository root, so that `main.py` and `render_window.py` are importable.
+
+### Running without Docker or a display
+
+`headless_run.py` drives `main()` end to end when neither a Viron server nor a display is available. The real Pygame, `RenderWindow` and `Graphik` are used, rendering to SDL's `dummy` video and audio drivers (unless `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is already set); only Viron is replaced, by in-memory services with one location per grid cell. Like the test suite, it needs neither the `Viron/` submodule nor Python 3.10+.
+
+```bash
+python headless_run.py [gridSize] [frames]
+```
+
+`gridSize` defaults to `10` and `frames`, the number of render-loop frames to draw per scenario, to `30`. Three scenarios are run, each in its own temporary directory so that the repository's `environments.json` is neither read nor written:
+
+- `create-and-exit` — a new environment is created and rendered once, as with `--exit-after-create` (the two-second pause is skipped)
+- `create-and-render` — a new environment is created and the render loop runs
+- `load-and-render` — an environment already recorded in `environments.json` is loaded and the render loop runs
+
+Each scenario prints `PASS` or `FAIL` and, for the render loop, the measured frame rate. A scenario fails if `main()` raises, if no entry is recorded in `environments.json`, if the render loop does not draw the requested number of frames, or if Pygame is left initialised. The exit status is `0` when every scenario passes, `1` otherwise, and `2` for invalid arguments. This exercises everything in `main.py` except the real HTTP calls to Viron, which still need a running server (see [Starting Viron](#starting-viron)).
 
 ## Use Cases
 
