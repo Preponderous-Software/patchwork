@@ -9,7 +9,7 @@ class RenderWindow:
     
     Manages:
     - Pygame initialization
-    - Window creation and display surface
+    - Window creation and display surface, optionally user-resizable
     - Event loop processing
     - Frame rate control
     - Custom event handlers
