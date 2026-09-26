@@ -9,24 +9,30 @@ class RenderWindow:
     
     Manages:
     - Pygame initialization
-    - Window creation and display surface
+    - Window creation and display surface, optionally user-resizable
     - Event loop processing
     - Frame rate control
     - Custom event handlers
     - Teardown, either explicitly via close() or via the context-manager protocol
     """
     
-    def __init__(self, title, width, height):
+    def __init__(self, title, width, height, resizable=False):
         """
         Initialize the RenderWindow with the specified title and dimensions.
-        
+
         Args:
             title (str): Window title
-            width (int): Window width in pixels
-            height (int): Window height in pixels
+            width (int): Initial window width in pixels
+            height (int): Initial window height in pixels
+            resizable (bool): Whether the user may resize the window. Pygame resizes the
+                display surface in place, so the surface returned by get_surface() stays
+                valid and its get_size() reports the current dimensions.
         """
         pygame.init()
-        self._surface = pygame.display.set_mode((width, height))
+        if resizable:
+            self._surface = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        else:
+            self._surface = pygame.display.set_mode((width, height))
         pygame.display.set_caption(title)
         self._clock = pygame.time.Clock()
         self._running = True

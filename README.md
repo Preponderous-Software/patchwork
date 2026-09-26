@@ -25,6 +25,7 @@ Patchwork provides a `RenderWindow` class that encapsulates Pygame initializatio
 - Event loop handling with custom event handlers
 - Frame rate control
 - Teardown via `close()` or the context-manager protocol
+- Optional user-resizable window
 - Clean API for common rendering operations
 
 ### Basic Usage
@@ -65,6 +66,14 @@ with RenderWindow("My Application", 800, 600) as window:
         # ... render your content ...
         pygame.display.update()
         window.tick(60)
+```
+
+Passing `resizable=True` lets the user resize the window. Pygame resizes the display
+surface in place, so the surface from `get_surface()` stays valid; `surface.get_size()`
+reports the current dimensions and should be read each frame to lay content out:
+
+```python
+window = RenderWindow("My Application", 800, 600, resizable=True)
 ```
 
 `main.py` uses `RenderWindow` for its own window and render loop, so it doubles as a
@@ -136,6 +145,8 @@ python main.py 100 --exit-after-create
 ```
 
 Created environments are recorded in `environments.json`, keyed by grid count and grid size (for example `1x50`; the grid count is currently fixed at `1`). A key that is already present in that file is re-loaded from Viron rather than re-created, so the file should be deleted to force re-creation.
+
+The window opens at 800x800 and can be resized. The render loop scales the grid to the window's current size on every frame, so the whole environment stays visible; the cells are stretched rather than kept square when the window is not square.
 
 The render loop is capped at 60 frames per second via `RenderWindow.tick()`. Since each location is re-coloured at random on every frame, that cap is also what sets the rate at which the visualization re-randomizes.
 

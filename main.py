@@ -87,7 +87,7 @@ def main(gridSize=defaultGridSize, exitAfterCreate=False, locationService=None, 
         locationService = LocationService(url, port)
     if environmentService is None:
         environmentService = EnvironmentService(url, port)
-    window = RenderWindow("Visualizing Environment With Random Colors", displayWidth, displayHeight)
+    window = RenderWindow("Visualizing Environment With Random Colors", displayWidth, displayHeight, resizable=True)
     gameDisplay = window.get_surface()
     graphik = Graphik(gameDisplay)
 
@@ -145,15 +145,17 @@ def main(gridSize=defaultGridSize, exitAfterCreate=False, locationService=None, 
             window.close()
             return
 
-    locationWidth = displayWidth/gridSize
-    locationHeight = displayHeight/gridSize
-
     locationsCache = {}
 
     while window.should_continue():
         if locationsCache == {}:
             log("Fetching locations from service...")
             locationsCache = locationService.get_locations_in_environment(environment.getEnvironmentId())
+
+        # the window is resizable, so the grid is scaled to the surface's current size every frame
+        surfaceWidth, surfaceHeight = gameDisplay.get_size()
+        locationWidth = surfaceWidth/gridSize
+        locationHeight = surfaceHeight/gridSize
 
         gameDisplay.fill(white)
         drawEnvironment(locationsCache, graphik, locationWidth, locationHeight)

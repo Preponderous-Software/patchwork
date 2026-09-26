@@ -20,6 +20,14 @@ class TestRenderWindow(unittest.TestCase):
         self.mock_pygame.display.set_caption.assert_called_once_with("Title")
         self.assertIs(window.get_surface(), self.mock_pygame.display.set_mode.return_value)
 
+    def test_resizable_window_is_created_with_the_resizable_flag(self):
+        self.mock_pygame.RESIZABLE = "RESIZABLE_SENTINEL"
+
+        window = self.RenderWindow("Title", 640, 480, resizable=True)
+
+        self.mock_pygame.display.set_mode.assert_called_once_with((640, 480), "RESIZABLE_SENTINEL")
+        self.assertIs(window.get_surface(), self.mock_pygame.display.set_mode.return_value)
+
     def test_tick_delegates_to_clock(self):
         window = self.RenderWindow("Title", 640, 480)
 
