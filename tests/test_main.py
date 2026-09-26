@@ -91,6 +91,7 @@ class MainTestCase(unittest.TestCase):
         self.mockTime.time.side_effect = [1.0, 3.5]
 
         self.window = self.mockRenderWindow.return_value
+        self.window.get_surface.return_value.get_size.return_value = (main.displayWidth, main.displayHeight)
         self.graphik = self.mockGraphik.return_value
         self.setFrames(0)
 
@@ -361,6 +362,41 @@ class TestRenderLoop(MainTestCase):
         surface = self.window.get_surface.return_value
         self.assertEqual(surface.fill.call_count, 2)
         surface.fill.assert_called_with(main.white)
+
+
+class TestResizableWindow(MainTestCase):
+    """Coverage for the resizable window (#4)."""
+
+    def drawnRectangles(self):
+        return [call.args[:4] for call in self.graphik.drawRectangle.call_args_list]
+
+    def test_the_window_is_created_resizable(self):
+        self.runMain(gridSize=10)
+
+        self.mockRenderWindow.assert_called_once_with(
+            "Visualizing Environment With Random Colors",
+            main.displayWidth, main.displayHeight, resizable=True)
+
+    def test_locations_are_scaled_to_the_current_surface_size(self):
+        self.locationService.get_locations_in_environment.return_value = [self.makeLocation(1, 1)]
+        self.window.get_surface.return_value.get_size.return_value = (400, 200)
+        self.setFrames(1)
+
+        self.runMain(gridSize=10)
+
+        self.assertEqual(self.drawnRectangles(), [(40 - 1, 20 - 1, 40 * 1.5, 20 * 1.5)])
+
+    def test_a_resize_between_frames_rescales_the_next_frame(self):
+        self.locationService.get_locations_in_environment.return_value = [self.makeLocation(1, 1)]
+        self.window.get_surface.return_value.get_size.side_effect = [(400, 200), (1000, 500)]
+        self.setFrames(2)
+
+        self.runMain(gridSize=10)
+
+        self.assertEqual(self.drawnRectangles(), [
+            (40 - 1, 20 - 1, 40 * 1.5, 20 * 1.5),
+            (100 - 1, 50 - 1, 100 * 1.5, 50 * 1.5),
+        ])
 
 
 if __name__ == "__main__":
