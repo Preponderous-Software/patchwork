@@ -170,6 +170,8 @@ python -m unittest discover -s tests
 
 Run the command from the repository root, so that `main.py` and `render_window.py` are importable.
 
+The same command, preceded by a `py_compile` syntax check of the top-level modules, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
+
 ### Running without Docker or a display
 
 `headless_run.py` drives `main()` end to end when neither a Viron server nor a display is available. The real Pygame, `RenderWindow` and `Graphik` are used, rendering to SDL's `dummy` video and audio drivers (unless `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is already set); only Viron is replaced, by in-memory services with one location per grid cell. Like the test suite, it needs neither the `Viron/` submodule nor Python 3.10+.

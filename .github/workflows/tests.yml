@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # The Viron submodule is deliberately not checked out: the test suite stubs it in
+      # sys.modules, and only main.py needs it at runtime.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # render_window.py imports pygame, and tests/test_headless_run.py drives the real
+      # pygame with SDL's dummy drivers, so it has to be installed even though most tests mock it.
+      - name: Install dependencies
+        run: python -m pip install pygame
+
+      - name: Check syntax
+        run: python -m py_compile main.py graphik.py __init__.py render_window.py headless_run.py usage_reporting.py trace_client.py
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests
