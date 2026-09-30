@@ -17,6 +17,9 @@ DEFAULT_ENDPOINT = "https://trace.danielstephenson.dev"
 DEFAULT_KEY = "oAMBqZC_yjTIqlB86_O7G4ZZ3gWuGBCBLJLFbUuFaoU"
 KEY_ENV_VAR = "PATCHWORK_USAGE_REPORTING_KEY"
 VERSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.txt")
+# Sent as the version when version.txt cannot be read: the client requires one, and a missing
+# file must never stop patchwork from starting.
+UNKNOWN_VERSION = "unknown"
 
 DETAILS_URL = "https://github.com/Stephenson-Software/trace#usage-reporting"
 
@@ -93,6 +96,7 @@ def loadSettings(settingsFile=SETTINGS_FILE, log=print):
 def buildClient(section, log=print):
     """
     A TraceClient for the given usage_reporting settings; disabled when they are None or opted out.
+    Every event it sends carries the version from version.txt (or UNKNOWN_VERSION) as ``version``.
 
     The client is built through TraceClient whenever the settings could be read, because the
     client checks the TRACE_USAGE_REPORTING and DO_NOT_TRACK environment variables before the
@@ -106,7 +110,8 @@ def buildClient(section, log=print):
     # settings.json written before the key shipped has no "key" entry and still reports.
     key = os.environ.get(KEY_ENV_VAR, "").strip() or str(section.get("key") or "").strip() or DEFAULT_KEY
     try:
-        return TraceClient(endpoint, APPLICATION, key=key, enabled=bool(enabled))
+        return TraceClient(endpoint, APPLICATION, readVersion() or UNKNOWN_VERSION, key=key,
+                           enabled=bool(enabled))
     except ValueError as e:
         log(f"Could not configure usage reporting ({e}); usage reporting is off.")
         return TraceClient.disabled()
@@ -125,7 +130,6 @@ def startUsageReporting(settingsFile=SETTINGS_FILE, log=print):
     except Exception as e:
         log(f"Could not start usage reporting ({e}); usage reporting is off.")
         return TraceClient.disabled()
-    version = readVersion()
-    client.report("startup", tags={"version": version} if version else None)
+    client.report("startup")
     atexit.register(client.close)
     return client
