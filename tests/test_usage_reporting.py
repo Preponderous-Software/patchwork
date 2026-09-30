@@ -227,6 +227,18 @@ class TestStartupEvent(unittest.TestCase):
                 self.assertFalse(self.arrived.wait(0.3))
                 self.assertEqual([], self.requests)
 
+    def test_missing_version_file_reports_an_unknown_version(self):
+        with open(self.settingsFile, "w") as f:
+            json.dump({"usage_reporting": {"enabled": True, "endpoint": self.endpoint}}, f)
+
+        with patch("usage_reporting.atexit"), patch.dict(os.environ, {KEY_ENV_VAR: "test-key"}), \
+                patch("usage_reporting.readVersion", return_value=None):
+            client = startUsageReporting(self.settingsFile, lambda message: None)
+        self.addCleanup(client.close)
+
+        self.assertTrue(self.arrived.wait(5), "the startup event should still be sent")
+        self.assertEqual({"version": "unknown"}, self.requests[0]["body"]["tags"])
+
     def test_start_never_raises_even_if_settings_loading_fails(self):
         with patch("usage_reporting.loadSettings", side_effect=RuntimeError("boom")):
             client = startUsageReporting(self.settingsFile, lambda message: None)
