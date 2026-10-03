@@ -15,18 +15,25 @@ from usage_reporting import (
     FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT,
     KEY_ENV_VAR,
     buildClient,
+    installIdFile,
     loadSettings,
     readVersion,
     startUsageReporting,
 )
 
-_ENV_VARS = ("TRACE_USAGE_REPORTING", "DO_NOT_TRACK")
+_ENV_VARS = ("TRACE_USAGE_REPORTING", "DO_NOT_TRACK", "TRACE_INSTALL_ID")
 
 
 def _scrubEnvironment(test):
     """The machine running the tests may itself have opted out of usage reporting; every
     test starts from a clean environment and sets what it needs."""
     scrubbed = {k: v for k, v in os.environ.items() if k not in _ENV_VARS}
+    # An enabled client keeps its installation ID under the user data dir; point every
+    # candidate for that dir into a temporary directory of the test's own.
+    userData = tempfile.TemporaryDirectory()
+    test.addCleanup(userData.cleanup)
+    for variable in ("HOME", "USERPROFILE", "APPDATA", "XDG_DATA_HOME"):
+        scrubbed[variable] = userData.name
     patcher = patch.dict(os.environ, scrubbed, clear=True)
     patcher.start()
     test.addCleanup(patcher.stop)
@@ -166,6 +173,40 @@ class TestUsageReportingSettings(unittest.TestCase):
         self.assertEqual("runtime-key", client._key)
         client.close()
 
+    def test_installation_id_is_kept_under_the_user_data_dir_and_reused(self):
+        with patch("usage_reporting.sys.platform", "linux"), \
+                patch.dict(os.environ, {"XDG_DATA_HOME": os.path.join(self.tempDir.name, "xdg")}):
+            first = buildClient({"enabled": True})
+            second = buildClient({"enabled": True})
+        first.close()
+        second.close()
+
+        path = os.path.join(self.tempDir.name, "xdg", "patchwork", "trace-install-id")
+        with open(path, "r") as f:
+            self.assertEqual(first.install_id, f.readline().strip())
+        self.assertTrue(first.install_id)
+        self.assertEqual(first.install_id, second.install_id)
+
+    def test_trace_install_id_wins_over_the_file(self):
+        with patch.dict(os.environ, {"TRACE_INSTALL_ID": "pinned-id"}):
+            client = buildClient({"enabled": True})
+        client.close()
+
+        self.assertEqual("pinned-id", client.install_id)
+        self.assertFalse(os.path.exists(installIdFile()))
+
+    def test_installation_id_file_follows_the_platform(self):
+        with patch.dict(os.environ, {"HOME": "/h", "APPDATA": "/appdata"}):
+            os.environ.pop("XDG_DATA_HOME", None)
+            with patch("usage_reporting.sys.platform", "linux"):
+                self.assertEqual(os.path.join("/h", ".local", "share", "patchwork", "trace-install-id"),
+                                 installIdFile())
+            with patch("usage_reporting.sys.platform", "darwin"):
+                self.assertEqual(os.path.join("/h", "Library", "Application Support", "patchwork",
+                                              "trace-install-id"), installIdFile())
+            with patch("usage_reporting.sys.platform", "win32"):
+                self.assertEqual(os.path.join("/appdata", "patchwork", "trace-install-id"), installIdFile())
+
     def test_read_version_comes_from_version_txt(self):
         with open(os.path.join(os.path.dirname(usage_reporting.__file__), "version.txt"), "r") as f:
             expected = f.read().strip()
@@ -198,8 +239,11 @@ class TestStartupEvent(unittest.TestCase):
         request = self.requests[0]
         self.assertEqual("/api/metrics", request["path"])
         self.assertEqual("Bearer test-key", request["authorization"])
-        self.assertEqual({"application": "patchwork", "name": "startup", "tags": {"version": readVersion()}},
+        self.assertEqual({"application": "patchwork", "name": "startup",
+                          "tags": {"version": readVersion(), "install": client.install_id}},
                          request["body"])
+        with open(installIdFile(), "r") as f:
+            self.assertEqual(client.install_id, f.readline().strip())
 
     def test_opted_out_startup_sends_nothing(self):
         with open(self.settingsFile, "w") as f:
@@ -211,6 +255,7 @@ class TestStartupEvent(unittest.TestCase):
         self.assertFalse(client.enabled)
         self.assertFalse(self.arrived.wait(0.3))
         self.assertEqual([], self.requests)
+        self.assertFalse(os.path.exists(installIdFile()))
 
     def test_environment_opt_out_wins_over_enabled_settings_and_a_key(self):
         with open(self.settingsFile, "w") as f:
@@ -224,6 +269,7 @@ class TestStartupEvent(unittest.TestCase):
 
                 self.assertFalse(client.enabled)
                 self.assertEqual("environment", client.disabled_reason)
+                self.assertFalse(os.path.exists(installIdFile()))
                 self.assertFalse(self.arrived.wait(0.3))
                 self.assertEqual([], self.requests)
 
@@ -237,7 +283,7 @@ class TestStartupEvent(unittest.TestCase):
         self.addCleanup(client.close)
 
         self.assertTrue(self.arrived.wait(5), "the startup event should still be sent")
-        self.assertEqual({"version": "unknown"}, self.requests[0]["body"]["tags"])
+        self.assertEqual({"version": "unknown", "install": client.install_id}, self.requests[0]["body"]["tags"])
 
     def test_start_never_raises_even_if_settings_loading_fails(self):
         with patch("usage_reporting.loadSettings", side_effect=RuntimeError("boom")):

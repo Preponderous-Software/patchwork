@@ -1,6 +1,7 @@
 import atexit
 import json
 import os
+import sys
 
 from trace_client import TraceClient, environment_opts_out
 
@@ -24,9 +25,9 @@ UNKNOWN_VERSION = "unknown"
 DETAILS_URL = "https://github.com/Stephenson-Software/trace#usage-reporting"
 
 FIRST_RUN_NOTICE = (
-    "Usage reporting is on: patchwork sends its name and version at startup and an "
-    "environment-created event to https://trace.danielstephenson.dev - "
-    "nothing about you, your machine or the environments. "
+    "Usage reporting is on: patchwork sends its name, its version and a random installation ID "
+    "at startup and an environment-created event to https://trace.danielstephenson.dev - "
+    "nothing about you or the environments. "
     'Turn it off with "usage_reporting": {"enabled": false} in settings.json, or for every '
     "trace-reporting program with the environment variable TRACE_USAGE_REPORTING=off. "
     "Details: " + DETAILS_URL
@@ -47,6 +48,22 @@ def firstRunNotice():
 def defaultSettings():
     """The usage_reporting block written to settings.json on first run."""
     return {"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}
+
+
+def installIdFile():
+    """Where this installation's random ID (the tag ``install`` on every event) is kept:
+    ``<user data dir>/patchwork/trace-install-id``, the user data dir being %APPDATA% on
+    Windows, ~/Library/Application Support on macOS and $XDG_DATA_HOME (or ~/.local/share)
+    elsewhere. The client only reads or creates it when reporting is on; deleting it resets
+    the ID."""
+    home = os.path.expanduser("~")
+    if sys.platform == "win32":
+        base = os.environ.get("APPDATA", "").strip() or os.path.join(home, "AppData", "Roaming")
+    elif sys.platform == "darwin":
+        base = os.path.join(home, "Library", "Application Support")
+    else:
+        base = os.environ.get("XDG_DATA_HOME", "").strip() or os.path.join(home, ".local", "share")
+    return os.path.join(base, APPLICATION.lower(), "trace-install-id")
 
 
 def readVersion(versionFile=VERSION_FILE):
@@ -96,7 +113,10 @@ def loadSettings(settingsFile=SETTINGS_FILE, log=print):
 def buildClient(section, log=print):
     """
     A TraceClient for the given usage_reporting settings; disabled when they are None or opted out.
-    Every event it sends carries the version from version.txt (or UNKNOWN_VERSION) as ``version``.
+    Every event it sends carries the version from version.txt (or UNKNOWN_VERSION) as ``version``,
+    and a random installation ID as ``install``: TRACE_INSTALL_ID when set, otherwise the one kept
+    in installIdFile(). The client resolves both only after its opt-out checks, so a disabled
+    client never creates the file.
 
     The client is built through TraceClient whenever the settings could be read, because the
     client checks the TRACE_USAGE_REPORTING and DO_NOT_TRACK environment variables before the
@@ -111,7 +131,9 @@ def buildClient(section, log=print):
     key = os.environ.get(KEY_ENV_VAR, "").strip() or str(section.get("key") or "").strip() or DEFAULT_KEY
     try:
         return TraceClient(endpoint, APPLICATION, readVersion() or UNKNOWN_VERSION, key=key,
-                           enabled=bool(enabled))
+                           enabled=bool(enabled),
+                           install_id=os.environ.get("TRACE_INSTALL_ID"),
+                           install_id_file=installIdFile())
     except ValueError as e:
         log(f"Could not configure usage reporting ({e}); usage reporting is off.")
         return TraceClient.disabled()
