@@ -208,15 +208,26 @@ Each scenario prints `PASS` or `FAIL` and, for the render loop, the measured fra
 Usage reporting is on by default: Patchwork sends its name (`patchwork`), its version from
 `version.txt` and the events `startup` (once per launch) and `environment-created` (when a new
 environment is created through Viron) to [trace](https://github.com/Stephenson-Software/trace)
-at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. Nothing
-about you, your machine, your IP address, the grid size or the environments is sent. The report
+at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. Every
+event also carries a random installation ID (the tag `install`) so installations can be counted
+rather than events; beyond that, nothing about you, your machine, your IP address, the grid size or
+the environments is sent. The report
 is made from a background thread, never blocks the program and never raises; if the service is
 unreachable the event is simply dropped.
 
 Patchwork ships with its program key (a key identifies the program to trace; it is not a
 secret). On first launch, the CLI prints a one-line notice and writes the settings block below to
 `settings.json` in the working directory (the same place as `environments.json`), after which the
-notice is not shown again. To turn reporting off, any one of these is enough:
+notice is not shown again.
+
+The installation ID is a random UUID kept in a file named `trace-install-id` in the user data
+directory: `~/.local/share/patchwork/` on Linux (or `$XDG_DATA_HOME/patchwork/`),
+`~/Library/Application Support/patchwork/` on macOS and `%APPDATA%\patchwork\` on Windows. It
+identifies no person, account or address; delete the file to get a new one. Setting the environment
+variable `TRACE_INSTALL_ID` sends that value instead and leaves the file alone. The file is only
+created while reporting is on, so every opt-out below also stops it.
+
+To turn reporting off, any one of these is enough:
 
 - set `enabled` to `false` in `settings.json`:
 
