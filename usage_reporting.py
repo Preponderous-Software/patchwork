@@ -22,7 +22,7 @@ VERSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "version
 # file must never stop patchwork from starting.
 UNKNOWN_VERSION = "unknown"
 
-DETAILS_URL = "https://github.com/Stephenson-Software/trace#usage-reporting"
+DETAILS_URL = "https://danielstephenson.dev/usage-reporting"
 
 FIRST_RUN_NOTICE = (
     "Usage reporting is on: patchwork sends its name, its version and a random installation ID "
