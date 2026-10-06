@@ -207,7 +207,7 @@ Each scenario prints `PASS` or `FAIL` and, for the render loop, the measured fra
 
 Usage reporting is on by default: Patchwork sends its name (`patchwork`), its version from
 `version.txt` and the events `startup` (once per launch) and `environment-created` (when a new
-environment is created through Viron) to [trace](https://github.com/Stephenson-Software/trace)
+environment is created through Viron) to [trace](https://danielstephenson.dev/usage-reporting)
 at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. Every
 event also carries a random installation ID (the tag `install`) so installations can be counted
 rather than events; beyond that, nothing about you, your machine, your IP address, the grid size or
@@ -250,7 +250,7 @@ set, overrides the key in `settings.json` and the shipped one. The client lives 
 [trace-client-python](https://github.com/Stephenson-Software/trace-client-python) with only the
 header note adjusted for Patchwork, and the settings handling in `usage_reporting.py`.
 
-Details: https://github.com/Stephenson-Software/trace#usage-reporting
+Details: https://danielstephenson.dev/usage-reporting
 
 ## 📄 License
 

@@ -97,7 +97,7 @@ class TestUsageReportingSettings(unittest.TestCase):
         self.assertIn("settings.json", FIRST_RUN_NOTICE)
         self.assertIn("TRACE_USAGE_REPORTING=off", FIRST_RUN_NOTICE)
         self.assertIn(DETAILS_URL, FIRST_RUN_NOTICE)
-        self.assertEqual("https://github.com/Stephenson-Software/trace#usage-reporting", DETAILS_URL)
+        self.assertEqual("https://danielstephenson.dev/usage-reporting", DETAILS_URL)
         self.assertNotIn("\n", FIRST_RUN_NOTICE)
 
     def test_first_run_under_an_environment_opt_out_says_reporting_is_off(self):
