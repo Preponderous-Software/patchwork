@@ -17,7 +17,8 @@ Usage:
     python headless_run.py [gridSize] [frames]
 
 gridSize defaults to 10 and frames, the number of render-loop frames per scenario, to 30.
-The exit status is 0 if every scenario behaved as expected and 1 otherwise.
+The exit status is 0 if every scenario behaved as expected, 1 otherwise, and 2 if either
+argument is not a positive integer.
 """
 import json
 import os
