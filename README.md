@@ -162,7 +162,7 @@ create_environments.bat 25
 
 ### Running the tests
 
-Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Most tests also mock Pygame; the exception is `tests/test_headless_run.py`, which runs the headless harness described below against the real Pygame using SDL's dummy drivers. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.10 that `main.py` itself needs:
+Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Most tests also mock Pygame; the exception is `tests/test_headless_run.py`, which runs the headless harness described below against the real Pygame using SDL's dummy drivers. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.10 that `main.py` itself needs:
 
 ```bash
 python -m unittest discover -s tests

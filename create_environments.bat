@@ -1,4 +1,4 @@
-# Script to run `python main.py` a number of times with incrementing sizes
+REM Script to run `python main.py` a number of times with incrementing sizes
 
 echo off
 
