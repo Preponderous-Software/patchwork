@@ -85,6 +85,7 @@ worked example of integrating the class with `Graphik`.
 
 - Python 3.10+
 - [Pygame](https://www.pygame.org/) (`pip install pygame`)
+- [Requests](https://requests.readthedocs.io/) (`pip install requests`), which Viron's `EnvironmentService` and `LocationService` use to reach the Viron server
 - [Viron](https://github.com/Preponderous-Software/Viron), which is vendored as a Git submodule and is also expected to be running as a server (see below)
 - Docker, if Viron is to be started from the bundled Compose file
 
@@ -95,7 +96,7 @@ Clone the repository along with the `Viron` submodule:
 ```bash
 git clone --recurse-submodules https://github.com/Preponderous-Software/patchwork.git
 cd patchwork
-pip install pygame
+pip install pygame requests
 ```
 
 If the repository was already cloned without `--recurse-submodules`, the submodule can be populated afterwards:
