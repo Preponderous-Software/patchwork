@@ -123,7 +123,7 @@ docker compose -f Viron/compose.yml up -d --build
 docker compose -f Viron/compose.yml down --remove-orphans --volumes
 ```
 
-Note that `down.bat` passes `--volumes`, so stopping Viron this way also deletes its database volumes. Any environments recorded in `environments.json` will no longer resolve afterwards.
+Note that `down.bat` passes `--volumes`, so stopping Viron this way also deletes its database volumes. Any environments recorded in `environments.json` will no longer resolve afterwards (see [Running](#running) for what happens then).
 
 ### Running
 
@@ -145,7 +145,9 @@ Passing `--exit-after-create` as the second argument renders a newly created env
 python main.py 100 --exit-after-create
 ```
 
-Created environments are recorded in `environments.json`, keyed by grid count and grid size (for example `1x50`; the grid count is currently fixed at `1`). A key that is already present in that file is re-loaded from Viron rather than re-created, so the file should be deleted to force re-creation.
+Created environments are recorded in `environments.json`, keyed by grid count and grid size (for example `1x50`; the grid count is currently fixed at `1`). Each entry records the environment's `environment_id`, `grid_size`, `num_grids` and `creation_time_seconds`. A key that is already present in that file is re-loaded from Viron rather than re-created, so the file should be deleted to force re-creation.
+
+If a recorded environment cannot be loaded — because the Viron server is unreachable, or because it no longer knows the recorded ID — the error is printed, `Error loading environment, please check logs.` is shown in the window for about two seconds, and the program exits without re-creating the environment. Deleting `environments.json` (or just the affected entry) lets the next run create it afresh.
 
 The window opens at 800x800 and can be resized. The render loop scales the grid to the window's current size on every frame, so the whole environment stays visible; the cells are stretched rather than kept square when the window is not square.
 
