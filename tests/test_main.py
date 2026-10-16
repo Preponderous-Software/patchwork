@@ -188,6 +188,17 @@ class TestEnvironmentCreation(MainTestCase):
 
         self.window.should_continue.assert_called()
 
+    def test_a_failed_creation_propagates_without_recording_the_environment(self):
+        self.writeCacheFile({"1x99": {"environment_id": 99}})
+        self.environmentService.create_environment.side_effect = RuntimeError("unreachable")
+
+        with self.assertRaisesRegex(RuntimeError, "unreachable"):
+            self.runMain(gridSize=10, reportUsage=True)
+
+        self.assertEqual(self.readCacheFile(), {"1x99": {"environment_id": 99}})
+        self.mockStartUsageReporting.return_value.report.assert_not_called()
+        self.window.should_continue.assert_not_called()
+
 
 class TestLoadingMessage(MainTestCase):
     """Regression coverage for the cached-environment progress message (#21)."""
