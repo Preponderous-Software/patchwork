@@ -149,6 +149,8 @@ Created environments are recorded in `environments.json`, keyed by grid count an
 
 If a recorded environment cannot be loaded — because the Viron server is unreachable, or because it no longer knows the recorded ID — the error is printed, `Error loading environment, please check logs.` is shown in the window for about two seconds, and the program exits without re-creating the environment. Deleting `environments.json` (or just the affected entry) lets the next run create it afresh.
 
+Creating an environment is not guarded in the same way. If the Viron server is unreachable or rejects the request, the exception propagates out of `main()`: the program exits with a traceback and a non-zero status while `Creating environment, please wait...` is still shown, nothing is added to `environments.json`, and no `environment-created` event is reported. `create_environments.bat` relies on that non-zero status to print `Error occurred while running with size <n>.`, with the traceback going to `error_log.txt`.
+
 The window opens at 800x800 and can be resized. The render loop scales the grid to the window's current size on every frame, so the whole environment stays visible; the cells are stretched rather than kept square when the window is not square.
 
 The render loop is capped at 60 frames per second via `RenderWindow.tick()`. Since each location is re-coloured at random on every frame, that cap is also what sets the rate at which the visualization re-randomizes.
