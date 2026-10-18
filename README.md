@@ -83,7 +83,7 @@ worked example of integrating the class with `Graphik`.
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.9+, since Viron's `EnvironmentService` uses built-in generic annotations such as `list[Environment]`, which older interpreters reject on import
 - [Pygame](https://www.pygame.org/) (`pip install pygame`)
 - [Requests](https://requests.readthedocs.io/) (`pip install requests`), which Viron's `EnvironmentService` and `LocationService` use to reach the Viron server
 - [Viron](https://github.com/Preponderous-Software/Viron), which is vendored as a Git submodule and is also expected to be running as a server (see below)
@@ -167,7 +167,7 @@ create_environments.bat 25
 
 ### Running the tests
 
-Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Most tests also mock Pygame; the exception is `tests/test_headless_run.py`, which runs the headless harness described below against the real Pygame using SDL's dummy drivers. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.10 that `main.py` itself needs:
+Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Most tests also mock Pygame; the exception is `tests/test_headless_run.py`, which runs the headless harness described below against the real Pygame using SDL's dummy drivers. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.9 that `main.py` itself needs:
 
 ```bash
 python -m unittest discover -s tests
@@ -179,7 +179,7 @@ The same command, preceded by a `py_compile` syntax check of the top-level modul
 
 ### Running without Docker or a display
 
-`headless_run.py` drives `main()` end to end when neither a Viron server nor a display is available. The real Pygame, `RenderWindow` and `Graphik` are used, rendering to SDL's `dummy` video and audio drivers (unless `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is already set); only Viron is replaced, by in-memory services with one location per grid cell. Like the test suite, it needs neither the `Viron/` submodule nor Python 3.10+.
+`headless_run.py` drives `main()` end to end when neither a Viron server nor a display is available. The real Pygame, `RenderWindow` and `Graphik` are used, rendering to SDL's `dummy` video and audio drivers (unless `SDL_VIDEODRIVER` or `SDL_AUDIODRIVER` is already set); only Viron is replaced, by in-memory services with one location per grid cell. Like the test suite, it needs neither the `Viron/` submodule nor Python 3.9+.
 
 ```bash
 python headless_run.py [gridSize] [frames]
