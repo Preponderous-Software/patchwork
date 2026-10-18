@@ -3,7 +3,7 @@ Drive main.py end to end without a display, without Docker and without a Viron s
 
 Pygame, RenderWindow and Graphik are the real ones, rendering to SDL's dummy video driver.
 Only Viron is replaced: its service modules are stubbed in sys.modules so that main.py can
-be imported (they need Python 3.10+ and a populated submodule), and main() is handed
+be imported (they need Python 3.9+ and a populated submodule), and main() is handed
 in-memory services instead of ones pointed at http://localhost:9999.
 
 Three scenarios are run, each in a fresh temporary working directory so that no
@@ -36,7 +36,7 @@ defaultFrames = 30
 def installVironStubs():
     """
     Register stand-in modules for Viron's service modules so that main.py can be imported
-    without the submodule being populated and on interpreters older than Python 3.10.
+    without the submodule being populated and on interpreters older than Python 3.9.
     The stand-ins are never used to reach a server; main() is always given fake services.
     """
     servicesPath = "Viron.src.main.python.preponderous.viron.services"
