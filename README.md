@@ -4,6 +4,10 @@
 
 This project is part of the [Viron](https://github.com/Preponderous-Software/Viron) ecosystem and provides a visual layer to its simulated environments.
 
+![Patchwork creating a 20x20 environment through Viron, then rendering its locations](docs/images/patchwork.gif)
+
+*`python main.py 20` against a real local Viron server: the "Creating environment" screen, then the render loop re-colouring each of the 400 locations at random every frame (slowed down here; the real loop runs at 60 FPS).*
+
 ## Features
 
 - Grid-based rendering of 2D environments
@@ -192,6 +196,10 @@ python headless_run.py [gridSize] [frames]
 - `load-and-render` — an environment already recorded in `environments.json` is loaded and the render loop runs
 
 Each scenario prints `PASS` or `FAIL` and, for the render loop, the measured frame rate. A scenario fails if `main()` raises, if no entry is recorded in `environments.json`, if the render loop does not draw the requested number of frames, or if Pygame is left initialised. The exit status is `0` when every scenario passes, `1` otherwise, and `2` for invalid arguments. This exercises everything in `main.py` except the real HTTP calls to Viron, which still need a running server (see [Starting Viron](#starting-viron)).
+
+### How the README image was captured
+
+The GIF at the top was recorded from an unmodified `python main.py 20` run under a virtual X display (Xvfb), with frames grabbed by ImageMagick `import`. The Viron server was the one in the `Viron/` submodule at its pinned commit, built with Maven and run against a throwaway local PostgreSQL initialised from `Viron/db-scripts/setup/`. Usage reporting was turned off with `DO_NOT_TRACK=1`.
 
 ## Use Cases
 
