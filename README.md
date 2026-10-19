@@ -137,7 +137,7 @@ To launch the Patchwork visualization:
 python main.py
 ```
 
-An optional first argument sets the grid size, which defaults to `50`. A value that cannot be parsed as an integer also falls back to `50`.
+An optional first argument sets the grid size, which defaults to `50`. A value that cannot be parsed as an integer, or one below `1`, also falls back to `50`, so no environment is created for a grid that could not be rendered.
 
 ```bash
 python main.py 100

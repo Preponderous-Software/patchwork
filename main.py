@@ -45,6 +45,10 @@ def parseArgs(argv):
         except ValueError:
             log("Invalid grid size argument, using default of " + str(defaultGridSize) + ".")
             gridSize = defaultGridSize
+        # a grid with no cells cannot be rendered, so it is never created through Viron
+        if gridSize < 1:
+            log("Grid size must be at least 1, using default of " + str(defaultGridSize) + ".")
+            gridSize = defaultGridSize
     exitAfterCreate = len(argv) > 2 and argv[2] == "--exit-after-create"
     return gridSize, exitAfterCreate
 

@@ -51,6 +51,15 @@ class TestParseArgs(unittest.TestCase):
     def test_falls_back_to_the_default_on_an_unparseable_grid_size(self):
         self.assertEqual(main.parseArgs(["main.py", "wide"]), (50, False))
 
+    def test_falls_back_to_the_default_on_a_zero_grid_size(self):
+        self.assertEqual(main.parseArgs(["main.py", "0", "--exit-after-create"]), (50, True))
+
+    def test_falls_back_to_the_default_on_a_negative_grid_size(self):
+        self.assertEqual(main.parseArgs(["main.py", "-5"]), (50, False))
+
+    def test_accepts_a_grid_size_of_one(self):
+        self.assertEqual(main.parseArgs(["main.py", "1"]), (1, False))
+
     def test_detects_the_exit_after_create_flag(self):
         self.assertEqual(main.parseArgs(["main.py", "100", "--exit-after-create"]), (100, True))
 
