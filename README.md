@@ -151,7 +151,7 @@ python main.py 100 --exit-after-create
 
 Created environments are recorded in `environments.json`, keyed by grid count and grid size (for example `1x50`; the grid count is currently fixed at `1`). Each entry records the environment's `environment_id`, `grid_size`, `num_grids` and `creation_time_seconds`. A key that is already present in that file is re-loaded from Viron rather than re-created, so the file should be deleted to force re-creation.
 
-If a recorded environment cannot be loaded — because the Viron server is unreachable, or because it no longer knows the recorded ID — the error is printed, `Error loading environment, please check logs.` is shown in the window for about two seconds, and the program exits without re-creating the environment. Deleting `environments.json` (or just the affected entry) lets the next run create it afresh.
+If a recorded environment cannot be loaded — because the Viron server is unreachable, or because it no longer knows the recorded ID — the error is printed, `Error loading environment, please check logs.` is shown in the window for about two seconds, and the program exits with status `0` without re-creating the environment. Deleting `environments.json` (or just the affected entry) lets the next run create it afresh.
 
 Creating an environment is not guarded in the same way. If the Viron server is unreachable or rejects the request, the exception propagates out of `main()`: the program exits with a traceback and a non-zero status while `Creating environment, please wait...` is still shown, nothing is added to `environments.json`, and no `environment-created` event is reported. `create_environments.bat` relies on that non-zero status to print `Error occurred while running with size <n>.`, with the traceback going to `error_log.txt`.
 
@@ -229,9 +229,24 @@ is made from a background thread, never blocks the program and never raises; if 
 unreachable the event is simply dropped.
 
 Patchwork ships with its program key (a key identifies the program to trace; it is not a
-secret). On first launch, the CLI prints a one-line notice and writes the settings block below to
+secret). On first launch, the CLI prints a one-line notice and writes this block to
 `settings.json` in the working directory (the same place as `environments.json`), after which the
-notice is not shown again.
+notice is not shown again:
+
+```json
+{
+  "usage_reporting": {
+    "enabled": true,
+    "endpoint": "https://trace.danielstephenson.dev",
+    "key": "oAMBqZC_yjTIqlB86_O7G4ZZ3gWuGBCBLJLFbUuFaoU"
+  }
+}
+```
+
+If `settings.json` already exists, the block is added alongside its other entries. When
+`TRACE_USAGE_REPORTING` or `DO_NOT_TRACK` already opts out (see below), the block is still written,
+but the notice instead reads `Usage reporting is off (environment). Details:` followed by the
+details link.
 
 The installation ID is a random UUID kept in a file named `trace-install-id` in the user data
 directory: `~/.local/share/patchwork/` on Linux (or `$XDG_DATA_HOME/patchwork/`),
