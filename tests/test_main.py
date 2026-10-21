@@ -419,5 +419,75 @@ class TestResizableWindow(MainTestCase):
         ])
 
 
+class TestDrawEnvironment(unittest.TestCase):
+    """Characterization of how drawEnvironment() turns locations into rectangles."""
+
+    def makeLocation(self, x, y):
+        location = MagicMock(name=f"Location({x},{y})")
+        location.get_x.return_value = x
+        location.get_y.return_value = y
+        return location
+
+    def test_each_location_is_drawn_once_offset_and_enlarged_to_cover_the_seams(self):
+        graphik = MagicMock(name="Graphik")
+        locations = [self.makeLocation(0, 0), self.makeLocation(3, 2)]
+
+        main.drawEnvironment(locations, graphik, 8, 4)
+
+        self.assertEqual([call.args[:4] for call in graphik.drawRectangle.call_args_list], [
+            (0 - 1, 0 - 1, 8 * 1.5, 4 * 1.5),
+            (24 - 1, 8 - 1, 8 * 1.5, 4 * 1.5),
+        ])
+
+    def test_each_colour_channel_is_drawn_from_fifty_up_to_but_excluding_two_hundred(self):
+        graphik = MagicMock(name="Graphik")
+
+        with patch("main.random.randrange", side_effect=[50, 120, 199]) as randrange:
+            main.drawEnvironment([self.makeLocation(0, 0)], graphik, 8, 8)
+
+        self.assertEqual([call.args for call in randrange.call_args_list], [(50, 200)] * 3)
+        self.assertEqual(graphik.drawRectangle.call_args.args[4], (50, 120, 199))
+
+    def test_no_locations_draws_nothing(self):
+        graphik = MagicMock(name="Graphik")
+
+        main.drawEnvironment([], graphik, 8, 8)
+
+        graphik.drawRectangle.assert_not_called()
+
+
+class TestExitAfterCreateFrame(MainTestCase):
+    """Characterization of the single frame drawn by --exit-after-create."""
+
+    def test_the_new_environment_is_drawn_once_and_flushed_before_the_pause(self):
+        calls = []
+        self.locationService.get_locations_in_environment.side_effect = \
+            lambda environmentId: calls.append(("get_locations", environmentId)) or [self.makeLocation(1, 1)]
+        self.graphik.drawRectangle.side_effect = lambda *args: calls.append(("drawRectangle", None))
+        self.mockPygame.display.update.side_effect = lambda: calls.append(("update", None))
+        self.mockTime.sleep.side_effect = lambda seconds: calls.append(("sleep", seconds))
+
+        self.runMain(gridSize=10, exitAfterCreate=True)
+
+        self.assertEqual(calls[-4:], [
+            ("get_locations", 7),
+            ("drawRectangle", None),
+            ("update", None),
+            ("sleep", 2),
+        ])
+
+    def test_the_frame_is_scaled_to_the_initial_display_size_not_the_surface_size(self):
+        self.locationService.get_locations_in_environment.return_value = [self.makeLocation(1, 1)]
+        self.window.get_surface.return_value.get_size.return_value = (400, 200)
+
+        self.runMain(gridSize=10, exitAfterCreate=True)
+
+        locationWidth = main.displayWidth / 10
+        locationHeight = main.displayHeight / 10
+        self.assertEqual([call.args[:4] for call in self.graphik.drawRectangle.call_args_list], [
+            (locationWidth - 1, locationHeight - 1, locationWidth * 1.5, locationHeight * 1.5),
+        ])
+
+
 if __name__ == "__main__":
     unittest.main()
