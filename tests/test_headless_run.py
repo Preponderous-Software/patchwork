@@ -1,6 +1,10 @@
+import contextlib
+import io
 import os
+import runpy
+import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import headless_run
 
@@ -33,6 +37,115 @@ class TestFakeServices(unittest.TestCase):
 
         self.assertEqual(sorted((location.get_x(), location.get_y()) for location in locations),
                          [(x, y) for x in range(3) for y in range(3)])
+
+
+class TestInstallVironStubs(unittest.TestCase):
+    servicesPath = "Viron.src.main.python.preponderous.viron.services"
+
+    def test_both_service_classes_are_importable_once_installed(self):
+        vironModules = [name for name in sys.modules if name == "Viron" or name.startswith("Viron.")]
+
+        with patch.dict(sys.modules):
+            for name in vironModules:
+                del sys.modules[name]
+
+            headless_run.installVironStubs()
+
+            self.assertTrue(hasattr(sys.modules[self.servicesPath + ".environmentService"], "EnvironmentService"))
+            self.assertTrue(hasattr(sys.modules[self.servicesPath + ".locationService"], "LocationService"))
+
+    def test_modules_that_are_already_registered_are_not_replaced(self):
+        existing = MagicMock(name="existing environmentService module")
+
+        with patch.dict(sys.modules, {self.servicesPath + ".environmentService": existing}):
+            headless_run.installVironStubs()
+
+            self.assertIs(sys.modules[self.servicesPath + ".environmentService"], existing)
+
+
+class TestFrameCounter(unittest.TestCase):
+    def setUp(self):
+        self.pygame = MagicMock(name="pygame")
+        self.window = MagicMock(name="window")
+        self.tick = MagicMock(name="tick")
+
+    def test_quit_is_posted_once_when_the_requested_frames_have_been_ticked(self):
+        counter = headless_run.FrameCounter(self.pygame, 3)
+        countingTick = counter.wrapTick(self.tick)
+
+        for _ in range(2):
+            countingTick(self.window, 60)
+        self.pygame.event.post.assert_not_called()
+        countingTick(self.window, 60)
+        countingTick(self.window, 60)
+
+        self.assertEqual(counter.count, 4)
+        self.pygame.event.Event.assert_called_once_with(self.pygame.QUIT)
+        self.pygame.event.post.assert_called_once_with(self.pygame.event.Event.return_value)
+
+    def test_the_wrapped_tick_is_called_with_the_window_and_frame_rate(self):
+        counter = headless_run.FrameCounter(self.pygame, 3)
+
+        counter.wrapTick(self.tick)(self.window, 60)
+
+        self.tick.assert_called_once_with(self.window, 60)
+
+    def test_the_window_is_closed_once_the_loop_runs_one_iteration_past_the_requested_frames(self):
+        counter = headless_run.FrameCounter(self.pygame, 2)
+        shouldContinue = MagicMock(name="should_continue", return_value=True)
+        countingShouldContinue = counter.wrapShouldContinue(shouldContinue)
+
+        for _ in range(3):
+            self.assertTrue(countingShouldContinue(self.window))
+        self.window.close.assert_not_called()
+        countingShouldContinue(self.window)
+
+        self.window.close.assert_called_once_with()
+        self.assertEqual(shouldContinue.call_count, 4)
+
+    def test_no_frame_rate_is_measured_below_two_frames(self):
+        counter = headless_run.FrameCounter(self.pygame, 5)
+        self.assertIsNone(counter.framesPerSecond())
+
+        counter.wrapTick(self.tick)(self.window, 60)
+
+        self.assertIsNone(counter.framesPerSecond())
+
+    def test_the_frame_rate_is_measured_between_the_first_and_last_ticks(self):
+        counter = headless_run.FrameCounter(self.pygame, 5)
+        countingTick = counter.wrapTick(self.tick)
+
+        with patch.object(headless_run.time, "perf_counter", side_effect=[10.0, 10.5, 11.0]):
+            for _ in range(3):
+                countingTick(self.window, 60)
+
+        self.assertEqual(counter.framesPerSecond(), 2.0)
+
+
+class TestCommandLine(unittest.TestCase):
+    def runHeadless(self, *args):
+        output = io.StringIO()
+        with patch.object(sys, "argv", ["headless_run.py", *args]), \
+                patch.dict(os.environ, {"SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"}), \
+                contextlib.redirect_stdout(output), \
+                self.assertRaises(SystemExit) as raised:
+            runpy.run_module("headless_run", run_name="__main__")
+        return raised.exception.code, output.getvalue()
+
+    def test_arguments_that_are_not_positive_integers_exit_with_status_2_and_usage(self):
+        for args in (("0",), ("-3",), ("abc",), ("3", "0"), ("3", "abc")):
+            with self.subTest(args=args):
+                status, output = self.runHeadless(*args)
+
+                self.assertEqual(status, 2)
+                self.assertIn("Usage: python headless_run.py [gridSize] [frames]", output)
+                self.assertNotIn("PASS", output)
+
+    def test_valid_arguments_run_every_scenario_and_exit_with_status_0(self):
+        status, output = self.runHeadless("3", "2")
+
+        self.assertEqual(status, 0)
+        self.assertEqual(output.count("PASS"), 3)
 
 
 class TestRun(unittest.TestCase):
