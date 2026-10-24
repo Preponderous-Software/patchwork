@@ -83,6 +83,27 @@ window = RenderWindow("My Application", 800, 600, resizable=True)
 `main.py` uses `RenderWindow` for its own window and render loop, so it doubles as a
 worked example of integrating the class with `Graphik`.
 
+## Graphik
+
+`Graphik` (in `graphik.py`) is the small drawing helper that `main.py` renders with. It is
+constructed around an existing display surface, such as the one from
+`RenderWindow.get_surface()`, and creates no window of its own:
+
+```python
+from graphik import Graphik
+
+graphik = Graphik(window.get_surface())
+graphik.drawRectangle(10, 10, 100, 50, (200, 0, 0))
+graphik.drawText("Hello", 400, 300, 20, "white")
+graphik.drawButton(350, 500, 100, 40, (0, 0, 200), "white", 16, "Click", on_click)
+```
+
+- `drawRectangle(xpos, ypos, width, height, color)` fills a rectangle whose top-left corner is at `(xpos, ypos)`.
+- `drawText(text, xpos, ypos, size, color)` renders `text` in Pygame's bundled `freesansbold.ttf` font at the given point size, centred on `(xpos, ypos)`.
+- `drawButton(xpos, ypos, width, height, colorBox, colorText, sizeText, text, function)` draws a box with its text centred on it, and calls `function` when the left mouse button goes down while the pointer is inside the box. It is meant to be called once per frame: holding the button down fires `function` only once, and a press that started elsewhere and is dragged onto the box does not fire it. Each button's press state is tracked separately, keyed by its position and size.
+
+Colours may be RGB tuples or any colour name Pygame recognises, such as `"white"` or `"red"`.
+
 ## Getting Started
 
 ### Prerequisites
@@ -159,7 +180,7 @@ The window opens at 800x800 and can be resized. The render loop scales the grid 
 
 The render loop is capped at 60 frames per second via `RenderWindow.tick()`. Since each location is re-coloured at random on every frame, that cap is also what sets the rate at which the visualization re-randomizes.
 
-`main.py` guards its entry point with `if __name__ == "__main__":`, so the module can be imported — by the test suite, or by another program wanting to call `main(gridSize, exitAfterCreate)` directly — without launching a window. `main()` also accepts `locationService` and `environmentService` arguments, which default to services pointed at `http://localhost:9999`. Usage reporting is started only by the CLI entrypoint, so a direct `main()` call does not create or modify `settings.json`.
+`main.py` guards its entry point with `if __name__ == "__main__":`, so the module can be imported — by the test suite, or by another program wanting to call `main(gridSize, exitAfterCreate)` directly — without launching a window. `main()` also accepts `locationService` and `environmentService` arguments, which default to services pointed at `http://localhost:9999`, and a `reportUsage` argument, which defaults to `False`. The CLI entrypoint passes `reportUsage=True`; a direct `main()` call that leaves it at the default starts no usage reporting and does not create or modify `settings.json`.
 
 ### Batch environment creation
 
@@ -243,7 +264,9 @@ notice is not shown again:
 }
 ```
 
-If `settings.json` already exists, the block is added alongside its other entries. When
+If `settings.json` already exists, the block is added alongside its other entries. If it exists
+but cannot be read, or does not hold a JSON object, a message saying so is printed, the file is
+left untouched, and nothing is reported for that run. When
 `TRACE_USAGE_REPORTING` or `DO_NOT_TRACK` already opts out (see below), the block is still written,
 but the notice instead reads `Usage reporting is off (environment). Details:` followed by the
 details link.
@@ -269,7 +292,10 @@ To turn reporting off, any one of these is enough:
 
 - set the environment variable `TRACE_USAGE_REPORTING=off` (also `false`, `0`, `no`), which turns
   off every program that reports to trace
-- set the environment variable `DO_NOT_TRACK=1` (see [consoledonottrack.com](https://consoledonottrack.com))
+- set the environment variable `DO_NOT_TRACK=1` (also `true`, `yes`; see [consoledonottrack.com](https://consoledonottrack.com))
+
+For both variables, case and surrounding whitespace are ignored, and any other value (including an
+empty one) leaves `settings.json` in charge.
 
 The environment variables win over `settings.json`. `endpoint` selects the trace server and `key`
 the key reports are sent with; the `PATCHWORK_USAGE_REPORTING_KEY` environment variable, when
