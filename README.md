@@ -192,13 +192,13 @@ create_environments.bat 25
 
 ### Running the tests
 
-Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. Most tests also mock Pygame; the exception is `tests/test_headless_run.py`, which runs the headless harness described below against the real Pygame using SDL's dummy drivers. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.9 that `main.py` itself needs:
+Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. The tests for `main.py`, `render_window.py` and `graphik.py` mock Pygame; `tests/test_headless_run.py` also runs the headless harness described below end to end against the real Pygame using SDL's dummy drivers, and the tests for `usage_reporting.py` and `trace_client.py` do not involve Pygame at all. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.9 that `main.py` itself needs:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Run the command from the repository root, so that `main.py` and `render_window.py` are importable.
+Run the command from the repository root, so that the top-level modules the tests import (`main.py`, `render_window.py`, `graphik.py`, `headless_run.py`, `usage_reporting.py` and `trace_client.py`) are importable.
 
 The same command, preceded by a `py_compile` syntax check of the top-level modules, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
 
