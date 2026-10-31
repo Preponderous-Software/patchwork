@@ -146,6 +146,49 @@ class TestUsageReportingSettings(unittest.TestCase):
         with open(self.settingsFile, "r") as f:
             self.assertEqual("{not json", f.read(), "a broken settings file must not be overwritten")
 
+    def test_settings_file_that_is_not_an_object_disables_reporting_without_raising(self):
+        with open(self.settingsFile, "w") as f:
+            json.dump(["usage_reporting"], f)
+
+        section = loadSettings(self.settingsFile, self.log)
+
+        self.assertIsNone(section)
+        self.assertEqual(1, len(self.logged))
+        self.assertIn("settings file is not a JSON object", self.logged[0])
+        self.assertIn("usage reporting is off", self.logged[0])
+        self.assertEqual(["usage_reporting"], self.readSettingsFile(), "the file must not be overwritten")
+
+    def test_unwritable_settings_file_still_returns_the_defaults_and_warns_once(self):
+        # the settings file sits in a directory that does not exist, so it can be neither read nor written
+        self.settingsFile = os.path.join(self.tempDir.name, "missing-dir", "settings.json")
+
+        section = loadSettings(self.settingsFile, self.log)
+
+        self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}, section)
+        self.assertEqual(2, len(self.logged))
+        self.assertEqual(FIRST_RUN_NOTICE, self.logged[0])
+        self.assertTrue(self.logged[1].startswith("Could not write " + self.settingsFile))
+        self.assertIn("the notice above will be shown again next time", self.logged[1])
+        self.assertFalse(os.path.exists(self.settingsFile))
+
+    def test_settings_the_client_rejects_disable_reporting_without_raising(self):
+        cases = (
+            ("blank endpoint", {"enabled": True, "endpoint": "   "}, {}, "base_url is required"),
+            ("oversized installation ID", {"enabled": True}, {"TRACE_INSTALL_ID": "x" * 256},
+             "install_id is longer than 255 characters"),
+        )
+        for name, section, environment, reason in cases:
+            with self.subTest(name):
+                self.logged.clear()
+                with patch.dict(os.environ, environment):
+                    client = buildClient(section, self.log)
+
+                self.assertFalse(client.enabled)
+                self.assertEqual(
+                    ["Could not configure usage reporting (%s); usage reporting is off." % reason],
+                    self.logged)
+        self.assertFalse(os.path.exists(installIdFile()))
+
     def test_missing_endpoint_and_key_fall_back_to_the_shipped_defaults(self):
         # a settings.json written before the key shipped has no "key" entry and still reports
         client = buildClient({"enabled": True})
