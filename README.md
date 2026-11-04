@@ -179,7 +179,7 @@ Creating an environment is not guarded in the same way. If the Viron server is u
 Only the load itself is guarded. The other failures below also propagate out of `main()`, so the program exits with a traceback and a non-zero status, with no error drawn in the window:
 
 - If `environments.json` is empty or is not valid JSON, the failure comes before Viron is contacted and the file is left as it is. Deleting the file lets the next run start afresh.
-- If `environments.json` holds valid JSON that is not an object, such as `[]`, the failure comes only after the environment has been created through Viron. The new environment is not recorded, and the file is left as it is.
+- If `environments.json` holds valid JSON that is not an object, such as `[]`, the failure comes only after the environment has been created through Viron. The new environment is not recorded and the file is left as it is, so every further run creates another one until the file is deleted.
 - If the entry for the requested grid size has no `environment_id`, the failure comes before Viron is contacted, so the load error above is not shown. Deleting the entry lets the next run create it afresh.
 - If fetching an environment's locations fails, the environment stays recorded in `environments.json`, so the next run loads it rather than creating another. For a new environment, the `environment-created` event has already been reported by then.
 
