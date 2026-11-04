@@ -176,6 +176,13 @@ If a recorded environment cannot be loaded — because the Viron server is unrea
 
 Creating an environment is not guarded in the same way. If the Viron server is unreachable or rejects the request, the exception propagates out of `main()`: the program exits with a traceback and a non-zero status while `Creating environment, please wait...` is still shown, nothing is added to `environments.json`, and no `environment-created` event is reported. `create_environments.bat` relies on that non-zero status to print `Error occurred while running with size <n>.`, with the traceback going to `error_log.txt`.
 
+Only the load itself is guarded. The other failures below also propagate out of `main()`, so the program exits with a traceback and a non-zero status, with no error drawn in the window:
+
+- If `environments.json` is empty or is not valid JSON, the failure comes before Viron is contacted and the file is left as it is. Deleting the file lets the next run start afresh.
+- If `environments.json` holds valid JSON that is not an object, such as `[]`, the failure comes only after the environment has been created through Viron. The new environment is not recorded, and the file is left as it is.
+- If the entry for the requested grid size has no `environment_id`, the failure comes before Viron is contacted, so the load error above is not shown. Deleting the entry lets the next run create it afresh.
+- If fetching an environment's locations fails, the environment stays recorded in `environments.json`, so the next run loads it rather than creating another. For a new environment, the `environment-created` event has already been reported by then.
+
 The window opens at 800x800 and can be resized. The render loop scales the grid to the window's current size on every frame, so the whole environment stays visible; the cells are stretched rather than kept square when the window is not square.
 
 The render loop is capped at 60 frames per second via `RenderWindow.tick()`. Since each location is re-coloured at random on every frame, that cap is also what sets the rate at which the visualization re-randomizes.

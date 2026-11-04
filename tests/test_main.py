@@ -209,6 +209,83 @@ class TestEnvironmentCreation(MainTestCase):
         self.window.should_continue.assert_not_called()
 
 
+class TestUnguardedFailures(MainTestCase):
+    """
+    Failures outside the one guarded call, get_environment_by_id. Like a failed creation,
+    these propagate out of main(), and whether they should be handled like a failed load
+    is the open question in #42, so nothing here asserts on window.close().
+    """
+
+    def writeRawCacheFile(self, text):
+        with open("environments.json", "w") as cacheFile:
+            cacheFile.write(text)
+
+    def readRawCacheFile(self):
+        with open("environments.json", "r") as cacheFile:
+            return cacheFile.read()
+
+    def assertLocationFailurePropagates(self, **runMainArguments):
+        self.locationService.get_locations_in_environment.side_effect = RuntimeError("unreachable")
+
+        with self.assertRaisesRegex(RuntimeError, "unreachable"):
+            self.runMain(gridSize=10, **runMainArguments)
+
+    def test_a_cache_file_that_is_not_json_propagates_and_is_left_untouched(self):
+        for name, text in (("malformed", "{not json"), ("empty", "")):
+            with self.subTest(name):
+                self.writeRawCacheFile(text)
+
+                with self.assertRaises(json.JSONDecodeError):
+                    self.runMain(gridSize=10)
+
+                self.assertEqual(self.readRawCacheFile(), text)
+                self.environmentService.create_environment.assert_not_called()
+                self.environmentService.get_environment_by_id.assert_not_called()
+
+    def test_a_cache_file_that_is_not_an_object_fails_only_after_the_environment_is_created(self):
+        self.writeRawCacheFile("[]")
+
+        with self.assertRaises(TypeError):
+            self.runMain(gridSize=10)
+
+        self.environmentService.create_environment.assert_called_once_with("Test", 1, 10)
+        self.assertEqual(self.readRawCacheFile(), "[]")
+
+    def test_a_cache_entry_without_an_id_propagates_instead_of_failing_as_a_load(self):
+        self.writeCacheFile({"1x10": {"grid_size": 10}})
+
+        with self.assertRaisesRegex(KeyError, "environment_id"):
+            self.runMain(gridSize=10)
+
+        self.environmentService.get_environment_by_id.assert_not_called()
+        self.environmentService.create_environment.assert_not_called()
+        self.assertEqual(self.readCacheFile(), {"1x10": {"grid_size": 10}})
+
+    def test_a_failed_location_fetch_after_creation_keeps_the_environment_recorded(self):
+        self.setFrames(1)
+
+        self.assertLocationFailurePropagates(reportUsage=True)
+
+        self.assertEqual(self.readCacheFile()["1x10"]["environment_id"], 7)
+        self.mockStartUsageReporting.return_value.report.assert_called_once_with("environment-created")
+
+    def test_a_failed_location_fetch_with_exit_after_create_keeps_the_environment_recorded(self):
+        self.assertLocationFailurePropagates(exitAfterCreate=True, reportUsage=True)
+
+        self.assertEqual(self.readCacheFile()["1x10"]["environment_id"], 7)
+        self.mockStartUsageReporting.return_value.report.assert_called_once_with("environment-created")
+
+    def test_a_failed_location_fetch_after_a_load_shows_no_load_error(self):
+        self.writeCacheFile({"1x10": {"environment_id": 42}})
+        self.setFrames(1)
+
+        self.assertLocationFailurePropagates()
+
+        self.assertEqual(self.readCacheFile(), {"1x10": {"environment_id": 42}})
+        drawnTexts = [call.args[0] for call in self.graphik.drawText.call_args_list]
+        self.assertNotIn("Error loading environment, please check logs.", drawnTexts)
+
+
 class TestLoadingMessage(MainTestCase):
     """Regression coverage for the cached-environment progress message (#21)."""
 
