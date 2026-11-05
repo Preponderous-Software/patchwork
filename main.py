@@ -25,8 +25,22 @@ defaultGridSize = 50
 url = "http://localhost"
 port = 9999
 
+usage = "Usage: python main.py [gridSize] [--exit-after-create]"
+
 def log(message):
     print(message)
+
+def wantsUsage(argv):
+    """
+    Check whether the command line asks for the usage line rather than for a run.
+
+    Args:
+        argv (list): The argument vector, including the program name at index 0
+
+    Returns:
+        bool: True if --help or -h is given in any position
+    """
+    return "--help" in argv[1:] or "-h" in argv[1:]
 
 def parseArgs(argv):
     """
@@ -169,5 +183,9 @@ def main(gridSize=defaultGridSize, exitAfterCreate=False, locationService=None, 
     window.close()
 
 if __name__ == "__main__":
+    # checked first, so that asking for help never opens a window or reaches Viron
+    if wantsUsage(sys.argv):
+        log(usage)
+        sys.exit(0)
     gridSize, exitAfterCreate = parseArgs(sys.argv)
     main(gridSize, exitAfterCreate, reportUsage=True)
