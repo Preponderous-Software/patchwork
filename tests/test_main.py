@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import runpy
@@ -65,6 +66,24 @@ class TestParseArgs(unittest.TestCase):
 
     def test_ignores_an_unrecognized_second_argument(self):
         self.assertEqual(main.parseArgs(["main.py", "100", "--render-forever"]), (100, False))
+
+
+class TestWantsUsage(unittest.TestCase):
+    def test_recognizes_both_spellings_of_the_flag(self):
+        for flag in ("--help", "-h"):
+            with self.subTest(flag=flag):
+                self.assertTrue(main.wantsUsage(["main.py", flag]))
+
+    def test_recognizes_the_flag_after_other_arguments(self):
+        self.assertTrue(main.wantsUsage(["main.py", "100", "--help"]))
+
+    def test_an_ordinary_run_does_not_ask_for_usage(self):
+        for argv in (["main.py"], ["main.py", "100", "--exit-after-create"], ["main.py", "wide"]):
+            with self.subTest(argv=argv):
+                self.assertFalse(main.wantsUsage(argv))
+
+    def test_the_program_name_is_not_read_as_a_flag(self):
+        self.assertFalse(main.wantsUsage(["--help"]))
 
 
 class TestGetEnvironmentKey(unittest.TestCase):
@@ -423,6 +442,28 @@ class TestCliEntrypoint(unittest.TestCase):
             moduleGlobals = runpy.run_module("main", run_name="__main__")
 
         usageReportingModule.startUsageReporting.assert_called_once_with(log=moduleGlobals["log"])
+
+    def test_asking_for_usage_prints_it_and_exits_without_side_effects(self):
+        workingDirectory = tempfile.TemporaryDirectory()
+        self.addCleanup(workingDirectory.cleanup)
+        self.addCleanup(os.chdir, os.getcwd())
+        os.chdir(workingDirectory.name)
+
+        for argv in (["main.py", "--help"], ["main.py", "-h"], ["main.py", "100", "--help"]):
+            with self.subTest(argv=argv):
+                output = io.StringIO()
+                with patch.object(sys, "argv", argv), \
+                        patch("usage_reporting.startUsageReporting") as mockStartUsageReporting, \
+                        patch("render_window.RenderWindow") as mockRenderWindow, \
+                        patch("sys.stdout", output):
+                    with self.assertRaises(SystemExit) as caught:
+                        runpy.run_module("main", run_name="__main__")
+
+                self.assertEqual(caught.exception.code, 0)
+                self.assertIn("Usage: python main.py [gridSize] [--exit-after-create]", output.getvalue())
+                mockStartUsageReporting.assert_not_called()
+                mockRenderWindow.assert_not_called()
+                self.assertEqual(os.listdir("."), [])
 
 
 class TestRenderLoop(MainTestCase):

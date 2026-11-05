@@ -170,6 +170,12 @@ Passing `--exit-after-create` as the second argument renders a newly created env
 python main.py 100 --exit-after-create
 ```
 
+Passing `--help` or `-h` in any position prints a usage line and exits with status `0`, before a window is opened, Viron is contacted, a file is written or usage reporting starts:
+
+```bash
+python main.py --help
+```
+
 Created environments are recorded in `environments.json`, keyed by grid count and grid size (for example `1x50`; the grid count is currently fixed at `1`). Each entry records the environment's `environment_id`, `grid_size`, `num_grids` and `creation_time_seconds`. A key that is already present in that file is re-loaded from Viron rather than re-created, so the file should be deleted to force re-creation.
 
 If a recorded environment cannot be loaded — because the Viron server is unreachable, or because it no longer knows the recorded ID — the error is printed, `Error loading environment, please check logs.` is shown in the window for about two seconds, and the program exits with status `0` without re-creating the environment. Deleting `environments.json` (or just the affected entry) lets the next run create it afresh.
