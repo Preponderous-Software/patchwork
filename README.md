@@ -16,6 +16,7 @@ This project is part of the [Viron](https://github.com/Preponderous-Software/Vir
 - Modular structure designed for future support of other graphics libraries
 - Clean interface for testing Viron entity placement and behavior
 - **RenderWindow** class for simplified Pygame window management
+- Text rendering of an environment's locations, with an example console application (see [Text rendering](#text-rendering))
 - Anonymous usage reporting (`startup` and `environment-created` events with the program name and version) with an opt-out in `settings.json` or the environment (see [Usage reporting](#usage-reporting))
 
 ## RenderWindow
@@ -103,6 +104,37 @@ graphik.drawButton(350, 500, 100, 40, (0, 0, 200), "white", 16, "Click", on_clic
 - `drawButton(xpos, ypos, width, height, colorBox, colorText, sizeText, text, function)` draws a box with its text centred on it, and calls `function` when the left mouse button goes down while the pointer is inside the box. It is meant to be called once per frame: holding the button down fires `function` only once, and a press that started elsewhere and is dragged onto the box does not fire it. Each button's press state is tracked separately, keyed by its position and size.
 
 Colours may be RGB tuples or any colour name Pygame recognises, such as `"white"` or `"red"`.
+
+## Text rendering
+
+`renderLocations` (in `text_renderer.py`) turns a list of locations into a string, so an environment can be shown without a window. It does not import Pygame:
+
+```python
+from text_renderer import renderLocations
+
+print(renderLocations(locations))
+print(renderLocations(locations, filled="X", empty="_"))
+```
+
+Each location needs only `get_x()` and `get_y()`, as in the locations from Viron's `LocationService`. As in the Pygame window, `x` increases to the right and `y` increases downwards. The grid is sized from the locations themselves, up to the largest `x` and `y`, and a cell with no location shows the `empty` text. Cells are separated by a space, since a terminal character is about twice as tall as it is wide. An empty list renders as an empty string.
+
+`console_view.py` is an example console application built on it, which prints an environment that already exists in Viron:
+
+```bash
+python console_view.py 7
+```
+
+```
+# # #
+# # #
+# # #
+```
+
+The environment ID is the required argument; `environments.json` records the ID of each environment created by `main.py`. The Viron server is expected at `http://localhost:9999`, as for `main.py` (see [Starting Viron](#starting-viron)). The application uses Viron's `LocationService`, so it needs the `Viron/` submodule and Requests, but not Pygame.
+
+The exit status is `0` once the environment is printed. It is `1`, with a message, if the locations cannot be fetched or there are none, which is also how an ID unknown to Viron shows up, and `2`, with a usage line, if the argument is missing or is not an integer. `--help` or `-h` prints the usage line and exits with status `0` without contacting Viron.
+
+Nothing is created in Viron, no file is written, and no usage is reported. Viron gives every grid the same coordinates, so the grids of an environment with several would be drawn on top of each other; environments created by `main.py` have one.
 
 ## Getting Started
 
@@ -205,15 +237,15 @@ create_environments.bat 25
 
 ### Running the tests
 
-Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. The tests for `main.py`, `render_window.py` and `graphik.py` mock Pygame; `tests/test_headless_run.py` also runs the headless harness described below end to end against the real Pygame using SDL's dummy drivers, and the tests for `usage_reporting.py` and `trace_client.py` do not involve Pygame at all. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.9 that `main.py` itself needs:
+Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. The tests for `main.py`, `render_window.py` and `graphik.py` mock Pygame; `tests/test_headless_run.py` also runs the headless harness described below end to end against the real Pygame using SDL's dummy drivers, and the tests for `text_renderer.py`, `console_view.py`, `usage_reporting.py` and `trace_client.py` do not involve Pygame at all. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.9 that `main.py` itself needs:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Run the command from the repository root, so that the top-level modules the tests import (`main.py`, `render_window.py`, `graphik.py`, `headless_run.py`, `usage_reporting.py` and `trace_client.py`) are importable.
+Run the command from the repository root, so that the top-level modules the tests import (`main.py`, `render_window.py`, `graphik.py`, `headless_run.py`, `text_renderer.py`, `console_view.py`, `usage_reporting.py` and `trace_client.py`) are importable.
 
-The same command, preceded by a `py_compile` syntax check of the top-level modules, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
+The same command, preceded by a `py_compile` syntax check of the top-level modules other than `text_renderer.py` and `console_view.py`, which the suite imports anyway, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
 
 ### Running without Docker or a display
 
