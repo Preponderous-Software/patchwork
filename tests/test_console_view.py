@@ -102,6 +102,15 @@ class TestMain(unittest.TestCase):
         self.assertEqual(output, "#\n")
         service.assert_called_once_with("http://localhost", 9999)
 
+    def test_the_service_is_built_for_the_address_in_the_environment(self):
+        address = {"PATCHWORK_VIRON_URL": "http://viron", "PATCHWORK_VIRON_PORT": "8080"}
+        with patch.object(console_view, "LocationService") as service, patch.dict(os.environ, address):
+            service.return_value = fakeLocationService([headless_run.FakeLocation(0, 0)])
+
+            runMain(["console_view.py", "7"])
+
+        service.assert_called_once_with("http://viron", 8080)
+
 
 class TestEntryPoint(unittest.TestCase):
     def test_the_exit_status_of_main_reaches_the_process(self):

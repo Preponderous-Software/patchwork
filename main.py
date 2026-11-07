@@ -5,6 +5,7 @@ from Viron.src.main.python.preponderous.viron.services.locationService import Lo
 from graphik import Graphik
 from render_window import RenderWindow
 from usage_reporting import startUsageReporting
+from viron_address import getVironAddress
 import os
 import json
 import sys
@@ -22,10 +23,7 @@ targetFramesPerSecond = 60
 numGrids = 1
 defaultGridSize = 50
 
-url = "http://localhost"
-port = 9999
-
-usage = "Usage: python main.py [gridSize] [--exit-after-create]"
+usage ="Usage: python main.py [gridSize] [--exit-after-create]"
 
 def log(message):
     print(message)
@@ -101,6 +99,7 @@ def main(gridSize=defaultGridSize, exitAfterCreate=False, locationService=None, 
         reportUsage (bool): Whether to start usage reporting for this process
     """
     usage = startUsageReporting(log=log) if reportUsage else None
+    url, port = getVironAddress()
     if locationService is None:
         locationService = LocationService(url, port)
     if environmentService is None:

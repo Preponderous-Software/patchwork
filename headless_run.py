@@ -4,7 +4,7 @@ Drive main.py end to end without a display, without Docker and without a Viron s
 Pygame, RenderWindow and Graphik are the real ones, rendering to SDL's dummy video driver.
 Only Viron is replaced: its service modules are stubbed in sys.modules so that main.py can
 be imported (they need Python 3.9+ and a populated submodule), and main() is handed
-in-memory services instead of ones pointed at http://localhost:9999.
+in-memory services instead of ones pointed at a Viron server.
 
 Three scenarios are run, each in a fresh temporary working directory so that no
 environments.json in the repository is read or written:

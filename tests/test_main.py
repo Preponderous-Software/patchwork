@@ -170,6 +170,32 @@ class MainTestCase(unittest.TestCase):
                   reportUsage=reportUsage)
 
 
+class TestVironAddress(MainTestCase):
+    def runMainBuildingServices(self, environment):
+        """Run main() with no services supplied, and return the classes that built them."""
+        with patch("main.EnvironmentService", return_value=self.environmentService) as environmentService, \
+                patch("main.LocationService", return_value=self.locationService) as locationService, \
+                patch.dict(os.environ, environment):
+            for name in ("PATCHWORK_VIRON_URL", "PATCHWORK_VIRON_PORT"):
+                if name not in environment:
+                    os.environ.pop(name, None)
+            main.main(10)
+        return environmentService, locationService
+
+    def test_both_services_are_pointed_at_the_local_viron_by_default(self):
+        environmentService, locationService = self.runMainBuildingServices({})
+
+        environmentService.assert_called_once_with("http://localhost", 9999)
+        locationService.assert_called_once_with("http://localhost", 9999)
+
+    def test_both_services_are_pointed_at_the_address_in_the_environment(self):
+        environmentService, locationService = self.runMainBuildingServices(
+            {"PATCHWORK_VIRON_URL": "http://viron", "PATCHWORK_VIRON_PORT": "8080"})
+
+        environmentService.assert_called_once_with("http://viron", 8080)
+        locationService.assert_called_once_with("http://viron", 8080)
+
+
 class TestEnvironmentCreation(MainTestCase):
     def test_creates_an_environment_when_the_cache_file_is_absent(self):
         self.runMain(gridSize=10)
