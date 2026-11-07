@@ -14,9 +14,7 @@ import sys
 
 from Viron.src.main.python.preponderous.viron.services.locationService import LocationService
 from text_renderer import renderLocations
-
-url = "http://localhost"
-port = 9999
+from viron_address import getVironAddress
 
 usage = "Usage: python console_view.py <environmentId>"
 
@@ -56,6 +54,7 @@ def main(argv, locationService=None):
         print(usage)
         return 2
     if locationService is None:
+        url, port = getVironAddress()
         locationService = LocationService(url, port)
     try:
         locations = locationService.get_locations_in_environment(environmentId)

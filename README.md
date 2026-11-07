@@ -130,7 +130,7 @@ python console_view.py 7
 # # #
 ```
 
-The environment ID is the required argument; `environments.json` records the ID of each environment created by `main.py`. The Viron server is expected at `http://localhost:9999`, as for `main.py` (see [Starting Viron](#starting-viron)). The application uses Viron's `LocationService`, so it needs the `Viron/` submodule and Requests, but not Pygame.
+The environment ID is the required argument; `environments.json` records the ID of each environment created by `main.py`. The Viron server is expected at the same address as for `main.py` (see [Starting Viron](#starting-viron)). The application uses Viron's `LocationService`, so it needs the `Viron/` submodule and Requests, but not Pygame.
 
 The exit status is `0` once the environment is printed. It is `1`, with a message, if the locations cannot be fetched or there are none, which is also how an ID unknown to Viron shows up, and `2`, with a usage line, if the argument is missing or is not an integer. `--help` or `-h` prints the usage line and exits with status `0` without contacting Viron.
 
@@ -166,7 +166,7 @@ The submodule is required at runtime: `main.py` imports Viron's `EnvironmentServ
 
 ### Starting Viron
 
-Patchwork expects a Viron server to be reachable at `http://localhost:9999`. On Windows, the bundled batch scripts start and stop it:
+By default, Patchwork expects a Viron server to be reachable at `http://localhost:9999`. On Windows, the bundled batch scripts start and stop it:
 
 ```bat
 up.bat
@@ -181,6 +181,19 @@ docker compose -f Viron/compose.yml down --remove-orphans --volumes
 ```
 
 Note that `down.bat` passes `--volumes`, so stopping Viron this way also deletes its database volumes. Any environments recorded in `environments.json` will no longer resolve afterwards (see [Running](#running) for what happens then).
+
+To reach a Viron server elsewhere, set either or both of these environment variables, which `main.py` and `console_view.py` both read:
+
+- `PATCHWORK_VIRON_URL`, the URL including its scheme and without the port, which defaults to `http://localhost`
+- `PATCHWORK_VIRON_PORT`, which defaults to `9999`
+
+```bash
+PATCHWORK_VIRON_URL=https://viron.example PATCHWORK_VIRON_PORT=8080 python main.py
+```
+
+A variable that is unset, empty or only whitespace leaves its default in place, and a trailing slash on the URL is ignored. A port that is not an integer from `1` to `65535` prints a message and falls back to `9999`. `up.bat` and `down.bat` still manage only the local server from the bundled Compose file, whichever address is set.
+
+`environments.json` records each environment by its grid size alone, not by the server it was created on. After pointing Patchwork at a different Viron, the file should be deleted, or Patchwork run from another working directory, since a recorded ID could otherwise fail to load or resolve to an unrelated environment on the new server.
 
 ### Running
 
@@ -225,7 +238,7 @@ The window opens at 800x800 and can be resized. The render loop scales the grid 
 
 The render loop is capped at 60 frames per second via `RenderWindow.tick()`. Since each location is re-coloured at random on every frame, that cap is also what sets the rate at which the visualization re-randomizes.
 
-`main.py` guards its entry point with `if __name__ == "__main__":`, so the module can be imported — by the test suite, or by another program wanting to call `main(gridSize, exitAfterCreate)` directly — without launching a window. `main()` also accepts `locationService` and `environmentService` arguments, which default to services pointed at `http://localhost:9999`, and a `reportUsage` argument, which defaults to `False`. The CLI entrypoint passes `reportUsage=True`; a direct `main()` call that leaves it at the default starts no usage reporting and does not create or modify `settings.json`.
+`main.py` guards its entry point with `if __name__ == "__main__":`, so the module can be imported — by the test suite, or by another program wanting to call `main(gridSize, exitAfterCreate)` directly — without launching a window. `main()` also accepts `locationService` and `environmentService` arguments, which default to services pointed at the address described in [Starting Viron](#starting-viron), and a `reportUsage` argument, which defaults to `False`. The CLI entrypoint passes `reportUsage=True`; a direct `main()` call that leaves it at the default starts no usage reporting and does not create or modify `settings.json`.
 
 ### Batch environment creation
 
@@ -237,15 +250,15 @@ create_environments.bat 25
 
 ### Running the tests
 
-Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. The tests for `main.py`, `render_window.py` and `graphik.py` mock Pygame; `tests/test_headless_run.py` also runs the headless harness described below end to end against the real Pygame using SDL's dummy drivers, and the tests for `text_renderer.py`, `console_view.py`, `usage_reporting.py` and `trace_client.py` do not involve Pygame at all. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.9 that `main.py` itself needs:
+Unit tests live in `tests/` and use only the standard library's `unittest`. They stand in for Viron's service modules with stubs registered in `sys.modules`, so no display, no running Viron server, and not even a populated `Viron/` submodule are required. The tests for `main.py`, `render_window.py` and `graphik.py` mock Pygame; `tests/test_headless_run.py` also runs the headless harness described below end to end against the real Pygame using SDL's dummy drivers, and the tests for `text_renderer.py`, `console_view.py`, `viron_address.py`, `usage_reporting.py` and `trace_client.py` do not involve Pygame at all. `tests/test_batch_scripts.py` reads the Windows batch scripts as text, so it needs no Windows either. Because Viron is stubbed rather than imported, the suite also runs on Python versions older than the 3.9 that `main.py` itself needs:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Run the command from the repository root, so that the top-level modules the tests import (`main.py`, `render_window.py`, `graphik.py`, `headless_run.py`, `text_renderer.py`, `console_view.py`, `usage_reporting.py` and `trace_client.py`) are importable.
+Run the command from the repository root, so that the top-level modules the tests import (`main.py`, `render_window.py`, `graphik.py`, `headless_run.py`, `text_renderer.py`, `console_view.py`, `viron_address.py`, `usage_reporting.py` and `trace_client.py`) are importable.
 
-The same command, preceded by a `py_compile` syntax check of the top-level modules other than `text_renderer.py` and `console_view.py`, which the suite imports anyway, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
+The same command, preceded by a `py_compile` syntax check of the top-level modules other than `text_renderer.py`, `console_view.py` and `viron_address.py`, which the suite imports anyway, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
 
 ### Running without Docker or a display
 
