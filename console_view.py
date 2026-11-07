@@ -16,7 +16,7 @@ from Viron.src.main.python.preponderous.viron.services.locationService import Lo
 from text_renderer import renderLocations
 from viron_address import getVironAddress
 
-usage ="Usage: python console_view.py <environmentId>"
+usage = "Usage: python console_view.py <environmentId>"
 
 def parseEnvironmentId(argv):
     """
