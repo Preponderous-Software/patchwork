@@ -258,7 +258,7 @@ python -m unittest discover -s tests
 
 Run the command from the repository root, so that the top-level modules the tests import (`main.py`, `render_window.py`, `graphik.py`, `headless_run.py`, `text_renderer.py`, `console_view.py`, `viron_address.py`, `usage_reporting.py` and `trace_client.py`) are importable.
 
-The same command, preceded by a `py_compile` syntax check of the top-level modules other than `text_renderer.py`, `console_view.py` and `viron_address.py`, which the suite imports anyway, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
+The same command, preceded by a `py_compile` syntax check of every top-level `.py` file in the repository root, is run by the `Tests` GitHub Actions workflow (`.github/workflows/tests.yml`) on every pull request targeting `main` and on every push to `main`. The workflow checks the repository out without the `Viron` submodule, since the suite does not need it.
 
 ### Running without Docker or a display
 
