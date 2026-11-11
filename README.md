@@ -132,7 +132,7 @@ python console_view.py 7
 
 The environment ID is the required argument; `environments.json` records the ID of each environment created by `main.py`. The Viron server is expected at the same address as for `main.py` (see [Starting Viron](#starting-viron)). The application uses Viron's `LocationService`, so it needs the `Viron/` submodule and Requests, but not Pygame.
 
-The exit status is `0` once the environment is printed. It is `1`, with a message, if the locations cannot be fetched or there are none, which is also how an ID unknown to Viron shows up, and `2`, with a usage line, if the argument is missing or is not an integer. `--help` or `-h` prints the usage line and exits with status `0` without contacting Viron.
+The exit status is `0` once the environment is printed. It is `1`, with a message, if the locations cannot be fetched or there are none, which is also how an ID unknown to Viron shows up, and `2`, with a usage line, if the argument is missing, is not an integer, or is followed by further arguments. `--help` or `-h` prints the usage line and exits with status `0` without contacting Viron.
 
 Nothing is created in Viron, no file is written, and no usage is reported. Viron gives every grid the same coordinates, so the grids of an environment with several would be drawn on top of each other; environments created by `main.py` have one.
 
@@ -300,7 +300,8 @@ The GIF at the top was recorded from an unmodified `python main.py 20` run under
 Usage reporting is on by default: Patchwork sends its name (`patchwork`), its version from
 `version.txt` and the events `startup` (once per launch) and `environment-created` (when a new
 environment is created through Viron) to [trace](https://danielstephenson.dev/usage-reporting)
-at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. Every
+at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. If
+`version.txt` is missing, cannot be opened or is empty, `unknown` is sent as the version instead. Every
 event also carries a random installation ID (the tag `install`) so installations can be counted
 rather than events; beyond that, nothing about you, your machine, your IP address, the grid size or
 the environments is sent. The report

@@ -68,6 +68,15 @@ class TestMain(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertEqual(output, console_view.usage + "\n")
 
+    def test_a_further_argument_prints_the_usage_and_exits_two_without_reaching_viron(self):
+        locationService = fakeLocationService([])
+
+        status, output = runMain(["console_view.py", "7", "8"], locationService)
+
+        self.assertEqual(status, 2)
+        self.assertEqual(output, console_view.usage + "\n")
+        locationService.get_locations_in_environment.assert_not_called()
+
     def test_help_prints_the_usage_and_exits_zero_without_reaching_viron(self):
         for flag in ("--help", "-h"):
             with self.subTest(flag=flag), patch.object(console_view, "LocationService") as service:
