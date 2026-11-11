@@ -301,7 +301,7 @@ Usage reporting is on by default: Patchwork sends its name (`patchwork`), its ve
 `version.txt` and the events `startup` (once per launch) and `environment-created` (when a new
 environment is created through Viron) to [trace](https://danielstephenson.dev/usage-reporting)
 at `https://trace.danielstephenson.dev`, so that it is known which versions are in use. If
-`version.txt` is missing, unreadable or empty, `unknown` is sent as the version instead. Every
+`version.txt` is missing, cannot be opened or is empty, `unknown` is sent as the version instead. Every
 event also carries a random installation ID (the tag `install`) so installations can be counted
 rather than events; beyond that, nothing about you, your machine, your IP address, the grid size or
 the environments is sent. The report
