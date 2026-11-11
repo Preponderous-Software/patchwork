@@ -8,7 +8,8 @@ Usage:
     python console_view.py <environmentId>
 
 The exit status is 0 if the environment was printed, 1 if it could not be fetched or has
-no locations, and 2 if the argument is missing or is not an integer.
+no locations, and 2 if the argument is missing, is not an integer, or is followed by
+further arguments.
 """
 import sys
 
