@@ -67,6 +67,15 @@ class TestParseArgs(unittest.TestCase):
     def test_ignores_an_unrecognized_second_argument(self):
         self.assertEqual(main.parseArgs(["main.py", "100", "--render-forever"]), (100, False))
 
+    def test_the_flag_given_first_is_read_as_an_invalid_grid_size(self):
+        self.assertEqual(main.parseArgs(["main.py", "--exit-after-create"]), (50, False))
+
+    def test_the_flag_is_not_recognized_after_the_second_position(self):
+        self.assertEqual(main.parseArgs(["main.py", "100", "extra", "--exit-after-create"]), (100, False))
+
+    def test_arguments_after_the_second_are_ignored(self):
+        self.assertEqual(main.parseArgs(["main.py", "100", "--exit-after-create", "extra"]), (100, True))
+
 
 class TestWantsUsage(unittest.TestCase):
     def test_recognizes_both_spellings_of_the_flag(self):
