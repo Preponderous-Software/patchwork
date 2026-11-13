@@ -495,7 +495,7 @@ class TestCliEntrypoint(unittest.TestCase):
                         runpy.run_module("main", run_name="__main__")
 
                 self.assertEqual(caught.exception.code, 0)
-                self.assertIn("Usage: python main.py [gridSize] [--exit-after-create]", output.getvalue())
+                self.assertIn("Usage: python main.py [gridSize [--exit-after-create]]", output.getvalue())
                 mockStartUsageReporting.assert_not_called()
                 mockRenderWindow.assert_not_called()
                 self.assertEqual(os.listdir("."), [])
