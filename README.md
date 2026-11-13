@@ -217,7 +217,7 @@ python main.py 100 --exit-after-create
 
 The flag is recognised only in that second position. Given first, as in `python main.py --exit-after-create`, it is read as a grid size that cannot be parsed: `Invalid grid size argument, using default of 50.` is printed and the render loop is entered as usual. Apart from `--help` and `-h` (below), any other second argument, and every argument after the second, is ignored without a message.
 
-Passing `--help` or `-h` in any position prints a usage line and exits with status `0`, before a window is opened, Viron is contacted, a file is written or usage reporting starts:
+Passing `--help` or `-h` in any position prints the usage line, `Usage: python main.py [gridSize [--exit-after-create]]`, and exits with status `0`, before a window is opened, Viron is contacted, a file is written or usage reporting starts. The nested brackets show that `--exit-after-create` may only follow a grid size:
 
 ```bash
 python main.py --help

@@ -23,7 +23,7 @@ targetFramesPerSecond = 60
 numGrids = 1
 defaultGridSize = 50
 
-usage = "Usage: python main.py [gridSize] [--exit-after-create]"
+usage = "Usage: python main.py [gridSize [--exit-after-create]]"
 
 def log(message):
     print(message)
