@@ -148,6 +148,81 @@ class TestCommandLine(unittest.TestCase):
         self.assertEqual(output.count("PASS"), 3)
 
 
+class TestRunScenario(unittest.TestCase):
+    """
+    Covers the checks runScenario makes after main() returns normally, each in a scenario
+    where only that check fails.
+    """
+
+    def setUp(self):
+        environment = patch.dict(os.environ, {"SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"})
+        environment.start()
+        self.addCleanup(environment.stop)
+
+    def runScenario(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            passed = headless_run.runScenario("create-and-exit", 3, 2, exitAfterCreate=True, cachedEnvironment=False)
+        return passed, output.getvalue()
+
+    def test_a_scenario_that_records_no_entry_for_its_grid_size_fails(self):
+        def mainRecordingNothing(gridSize, exitAfterCreate, locationService, environmentService):
+            with open("environments.json", "w") as cacheFile:
+                cacheFile.write("{}")
+
+        with patch.object(main, "main", mainRecordingNothing):
+            passed, output = self.runScenario()
+
+        self.assertFalse(passed)
+        self.assertEqual(output, "FAIL create-and-exit: environments.json has no entry for 1x3\n")
+
+    def test_a_scenario_that_leaves_pygame_initialised_fails(self):
+        import pygame
+
+        with patch.object(pygame, "get_init", return_value=True):
+            passed, output = self.runScenario()
+
+        self.assertFalse(passed)
+        self.assertEqual(output.splitlines()[-1], "FAIL create-and-exit: pygame was left initialised")
+
+    def test_a_render_scenario_that_draws_no_frames_reports_the_expected_count(self):
+        def mainSkippingTheRenderLoop(gridSize, exitAfterCreate, locationService, environmentService):
+            with open("environments.json", "w") as cacheFile:
+                cacheFile.write('{"1x3": {"environment_id": 1}}')
+
+        output = io.StringIO()
+        with patch.object(main, "main", mainSkippingTheRenderLoop), contextlib.redirect_stdout(output):
+            passed = headless_run.runScenario("create-and-render", 3, 2, exitAfterCreate=False, cachedEnvironment=False)
+
+        self.assertFalse(passed)
+        self.assertEqual(output.getvalue(),
+                         "FAIL create-and-render: rendered 0 render-loop frame(s), expected 2\n")
+
+
+class TestSdlDrivers(unittest.TestCase):
+    def runWithoutScenarios(self):
+        with patch.object(headless_run, "runScenario", return_value=True), \
+                patch.object(headless_run, "installVironStubs"):
+            return headless_run.run(gridSize=3, frames=2)
+
+    def test_the_dummy_drivers_are_used_when_none_are_set(self):
+        with patch.dict(os.environ):
+            os.environ.pop("SDL_VIDEODRIVER", None)
+            os.environ.pop("SDL_AUDIODRIVER", None)
+
+            self.runWithoutScenarios()
+
+            self.assertEqual(os.environ["SDL_VIDEODRIVER"], "dummy")
+            self.assertEqual(os.environ["SDL_AUDIODRIVER"], "dummy")
+
+    def test_drivers_that_are_already_set_are_left_in_place(self):
+        with patch.dict(os.environ, {"SDL_VIDEODRIVER": "x11", "SDL_AUDIODRIVER": "pulseaudio"}):
+            self.runWithoutScenarios()
+
+            self.assertEqual(os.environ["SDL_VIDEODRIVER"], "x11")
+            self.assertEqual(os.environ["SDL_AUDIODRIVER"], "pulseaudio")
+
+
 class TestRun(unittest.TestCase):
     """
     Runs the harness end to end against the real pygame, RenderWindow and Graphik, rendering
