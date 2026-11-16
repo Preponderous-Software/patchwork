@@ -358,6 +358,12 @@ To turn reporting off, any one of these is enough:
 For both variables, case and surrounding whitespace are ignored, and any other value (including an
 empty one) leaves `settings.json` in charge.
 
+In `settings.json`, `enabled` should be the JSON value `false`, not the string `"false"`: it is read
+for its truthiness, so any non-empty string, including `"false"` and `"off"`, leaves reporting on,
+while `0`, `""` and `null` turn it off. The `usage_reporting` entry itself must be an object. Any
+other value, such as `false`, is overwritten with the default block above, with reporting on, and
+the first-launch notice is shown again.
+
 The environment variables win over `settings.json`. `endpoint` selects the trace server and `key`
 the key reports are sent with; the `PATCHWORK_USAGE_REPORTING_KEY` environment variable, when
 set, overrides the key in `settings.json` and the shipped one. The client lives in

@@ -132,6 +132,44 @@ class TestUsageReportingSettings(unittest.TestCase):
         self.assertEqual([], self.logged)
         self.assertEqual({"usage_reporting": {"enabled": False}}, self.readSettingsFile())
 
+    def test_a_block_that_is_not_an_object_is_replaced_by_the_defaults(self):
+        # Characterizes current behaviour: only an object counts as the block, so a value
+        # such as false is overwritten with reporting turned on and the notice shown again.
+        for name, value in (("false", False), ("string", "off"), ("list", []), ("null", None)):
+            with self.subTest(name):
+                self.logged.clear()
+                with open(self.settingsFile, "w") as f:
+                    json.dump({"usage_reporting": value, "other": {"kept": 1}}, f)
+
+                section = loadSettings(self.settingsFile, self.log)
+
+                self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}, section)
+                self.assertEqual([FIRST_RUN_NOTICE], self.logged)
+                self.assertEqual({"usage_reporting": section, "other": {"kept": 1}}, self.readSettingsFile())
+
+    def test_enabled_is_read_by_truthiness(self):
+        # Characterizes current behaviour: enabled is passed through bool(), so the string
+        # "false" turns reporting on, while 0, "" and null turn it off like false does.
+        cases = (
+            ("missing", {}, True),
+            ("string false", {"enabled": "false"}, True),
+            ("string off", {"enabled": "off"}, True),
+            ("one", {"enabled": 1}, True),
+            ("zero", {"enabled": 0}, False),
+            ("empty string", {"enabled": ""}, False),
+            ("null", {"enabled": None}, False),
+        )
+        for name, section, expectedEnabled in cases:
+            with self.subTest(name):
+                client = buildClient(section, self.log)
+                try:
+                    self.assertEqual(expectedEnabled, client.enabled)
+                    self.assertEqual(None if expectedEnabled else "config", client.disabled_reason)
+                finally:
+                    # nothing was reported, so close() sends nothing to the real service
+                    client.close()
+        self.assertEqual([], self.logged)
+
     def test_unreadable_settings_file_disables_reporting_without_raising(self):
         with open(self.settingsFile, "w") as f:
             f.write("{not json")
