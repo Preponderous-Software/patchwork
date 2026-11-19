@@ -106,9 +106,20 @@ class TestUsageReportingSettings(unittest.TestCase):
 
         self.assertEqual([FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT], self.logged)
         self.assertIn(DETAILS_URL, FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT)
-        # the environment never rewrites the settings: the block is still the default
-        self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}, section)
+        # the first run records the environment's opt-out, so a later run without it stays off
+        self.assertEqual({"enabled": False, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}, section)
         self.assertEqual({"usage_reporting": section}, self.readSettingsFile())
+
+    def test_first_run_under_an_environment_opt_out_stays_off_without_the_variable(self):
+        with patch.dict(os.environ, {"TRACE_USAGE_REPORTING": "off"}):
+            loadSettings(self.settingsFile, self.log)
+
+        client = buildClient(loadSettings(self.settingsFile, self.log), self.log)
+        try:
+            self.assertFalse(client.enabled)
+            self.assertEqual("config", client.disabled_reason)
+        finally:
+            client.close()
 
     def test_existing_settings_without_the_block_are_preserved(self):
         with open(self.settingsFile, "w") as f:
@@ -132,29 +143,48 @@ class TestUsageReportingSettings(unittest.TestCase):
         self.assertEqual([], self.logged)
         self.assertEqual({"usage_reporting": {"enabled": False}}, self.readSettingsFile())
 
-    def test_a_block_that_is_not_an_object_is_replaced_by_the_defaults(self):
-        # Characterizes current behaviour: only an object counts as the block, so a value
-        # such as false is overwritten with reporting turned on and the notice shown again.
+    def test_a_block_that_is_not_an_object_is_read_as_the_switch_and_not_rewritten(self):
+        # "usage_reporting": false used to be overwritten with the default block (on)
         for name, value in (("false", False), ("string", "off"), ("list", []), ("null", None)):
             with self.subTest(name):
                 self.logged.clear()
+                settings = {"usage_reporting": value, "other": {"kept": 1}}
                 with open(self.settingsFile, "w") as f:
-                    json.dump({"usage_reporting": value, "other": {"kept": 1}}, f)
+                    json.dump(settings, f)
 
                 section = loadSettings(self.settingsFile, self.log)
+                client = buildClient(section, self.log)
+                try:
+                    self.assertFalse(client.enabled)
+                    self.assertEqual("config", client.disabled_reason)
+                finally:
+                    client.close()
+                self.assertEqual([], self.logged)
+                self.assertEqual(settings, self.readSettingsFile())
 
-                self.assertEqual({"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}, section)
-                self.assertEqual([FIRST_RUN_NOTICE], self.logged)
-                self.assertEqual({"usage_reporting": section, "other": {"kept": 1}}, self.readSettingsFile())
+    def test_a_block_that_is_not_an_object_can_still_turn_reporting_on(self):
+        with open(self.settingsFile, "w") as f:
+            json.dump({"usage_reporting": True}, f)
 
-    def test_enabled_is_read_by_truthiness(self):
-        # Characterizes current behaviour: enabled is passed through bool(), so the string
-        # "false" turns reporting on, while 0, "" and null turn it off like false does.
+        client = buildClient(loadSettings(self.settingsFile, self.log), self.log)
+        try:
+            self.assertTrue(client.enabled)
+        finally:
+            client.close()
+
+    def test_enabled_fails_closed(self):
+        # enabled used to go through bool(), so the string "false" turned reporting on;
+        # now only true or an "on" string does
         cases = (
             ("missing", {}, True),
-            ("string false", {"enabled": "false"}, True),
-            ("string off", {"enabled": "off"}, True),
-            ("one", {"enabled": 1}, True),
+            ("true", {"enabled": True}, True),
+            ("string true", {"enabled": "true"}, True),
+            ("string on", {"enabled": " ON "}, True),
+            ("string false", {"enabled": "false"}, False),
+            ("string off", {"enabled": "off"}, False),
+            ("string no", {"enabled": "no"}, False),
+            ("typo", {"enabled": "ture"}, False),
+            ("one", {"enabled": 1}, False),
             ("zero", {"enabled": 0}, False),
             ("empty string", {"enabled": ""}, False),
             ("null", {"enabled": None}, False),

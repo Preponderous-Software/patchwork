@@ -328,9 +328,9 @@ notice is not shown again:
 If `settings.json` already exists, the block is added alongside its other entries. If it exists
 but cannot be read, or does not hold a JSON object, a message saying so is printed, the file is
 left untouched, and nothing is reported for that run. When
-`TRACE_USAGE_REPORTING` or `DO_NOT_TRACK` already opts out (see below), the block is still written,
-but the notice instead reads `Usage reporting is off (environment). Details:` followed by the
-details link.
+`TRACE_USAGE_REPORTING` or `DO_NOT_TRACK` already opts out (see below), the block is written with
+`"enabled": false`, so reporting stays off on later runs without the variable, and the notice says
+reporting is off instead.
 
 The installation ID is a random UUID kept in a file named `trace-install-id` in the user data
 directory: `~/.local/share/patchwork/` on Linux (or `$XDG_DATA_HOME/patchwork/`),
@@ -351,18 +351,18 @@ To turn reporting off, any one of these is enough:
   }
   ```
 
-- set the environment variable `TRACE_USAGE_REPORTING=off` (also `false`, `0`, `no`), which turns
-  off every program that reports to trace
-- set the environment variable `DO_NOT_TRACK=1` (also `true`, `yes`; see [consoledonottrack.com](https://consoledonottrack.com))
+- set the environment variable `TRACE_USAGE_REPORTING=off`, which turns off every program that
+  reports to trace (any value other than blank, `true`, `on`, `yes` or `1` turns it off)
+- set the environment variable `DO_NOT_TRACK=1` (any value other than blank, `0`, `false`, `off` or
+  `no` turns it off; see [consoledonottrack.com](https://consoledonottrack.com))
 
-For both variables, case and surrounding whitespace are ignored, and any other value (including an
-empty one) leaves `settings.json` in charge.
+For both variables, case and surrounding whitespace are ignored, and a blank value leaves
+`settings.json` in charge.
 
-In `settings.json`, `enabled` should be the JSON value `false`, not the string `"false"`: it is read
-for its truthiness, so any non-empty string, including `"false"` and `"off"`, leaves reporting on,
-while `0`, `""` and `null` turn it off. The `usage_reporting` entry itself must be an object. Any
-other value, such as `false`, is overwritten with the default block above, with reporting on, and
-the first-launch notice is shown again.
+Every switch fails closed. In `settings.json`, only `true` (or the string `"true"`, `"on"`, `"yes"`
+or `"1"`) reports; `false`, `"false"`, `"off"`, `0`, `""`, `null` or a typo all keep reporting off.
+A `usage_reporting` entry that is not an object, such as `"usage_reporting": false`, is read as the
+switch itself and is never overwritten.
 
 The environment variables win over `settings.json`. `endpoint` selects the trace server and `key`
 the key reports are sent with; the `PATCHWORK_USAGE_REPORTING_KEY` environment variable, when

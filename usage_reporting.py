@@ -3,7 +3,7 @@ import json
 import os
 import sys
 
-from trace_client import TraceClient, environment_opts_out
+from trace_client import TraceClient, allows_reporting, environment_opts_out
 
 #  @author Daniel McCoy Stephenson
 #  @since September 11th, 2026
@@ -34,8 +34,12 @@ FIRST_RUN_NOTICE = (
 )
 
 # Shown on the first run instead when TRACE_USAGE_REPORTING=off or DO_NOT_TRACK=1 is already
-# set: settings.json still gets its block, but saying reporting is on would mislead.
-FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT = "Usage reporting is off (environment). Details: " + DETAILS_URL
+# set: settings.json gets its block with "enabled": false, so a later run without the variable
+# does not report either.
+FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT = (
+    'Usage reporting is off (environment), and "usage_reporting": {"enabled": false} was written '
+    "to settings.json so it stays off. Details: " + DETAILS_URL
+)
 
 
 def firstRunNotice():
@@ -45,9 +49,9 @@ def firstRunNotice():
     return FIRST_RUN_NOTICE
 
 
-def defaultSettings():
+def defaultSettings(enabled=True):
     """The usage_reporting block written to settings.json on first run."""
-    return {"enabled": True, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}
+    return {"enabled": enabled, "endpoint": DEFAULT_ENDPOINT, "key": DEFAULT_KEY}
 
 
 def installIdFile():
@@ -99,8 +103,14 @@ def loadSettings(settingsFile=SETTINGS_FILE, log=print):
     section = settings.get(SETTINGS_SECTION)
     if isinstance(section, dict):
         return section
+    if SETTINGS_SECTION in settings:
+        # "usage_reporting": false (or "off", or anything else that is not a block) is the
+        # switch itself: read it as such, and never write the default block (on) over it.
+        return {"enabled": section}
 
-    settings[SETTINGS_SECTION] = defaultSettings()
+    # Under an environment opt-out the first run records "off", so a later run without the
+    # variable does not quietly report.
+    settings[SETTINGS_SECTION] = defaultSettings(enabled=not environment_opts_out())
     log(firstRunNotice())
     try:
         with open(settingsFile, "w") as f:
@@ -131,7 +141,9 @@ def buildClient(section, log=print):
     key = os.environ.get(KEY_ENV_VAR, "").strip() or str(section.get("key") or "").strip() or DEFAULT_KEY
     try:
         return TraceClient(endpoint, APPLICATION, readVersion() or UNKNOWN_VERSION, key=key,
-                           enabled=bool(enabled),
+                           # not bool(): bool("false") is True. Only true or an "on" string
+                           # reports; "false", "off", 0, null or a typo do not.
+                           enabled=allows_reporting(enabled),
                            install_id=os.environ.get("TRACE_INSTALL_ID"),
                            install_id_file=installIdFile())
     except ValueError as e:
