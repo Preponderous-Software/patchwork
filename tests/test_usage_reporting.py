@@ -13,6 +13,7 @@ from usage_reporting import (
     DETAILS_URL,
     FIRST_RUN_NOTICE,
     FIRST_RUN_NOTICE_OFF_BY_ENVIRONMENT,
+    FIRST_RUN_NOTICE_OFF_BY_SETTINGS,
     KEY_ENV_VAR,
     buildClient,
     installIdFile,
@@ -171,6 +172,66 @@ class TestUsageReportingSettings(unittest.TestCase):
             self.assertTrue(client.enabled)
         finally:
             client.close()
+
+    def test_an_opt_out_written_under_a_near_miss_name_is_an_opt_out(self):
+        # these used to be ignored, so the default block (on) was written next to them
+        cases = (
+            {"usage-reporting": {"enabled": False}},
+            {"usageReporting": {"enabled": "off"}},
+            {"UsageReporting": {"enabled": "false"}},
+            {"usage-reporting": "off"},
+            {"usage_reporting": {"enable": False}},
+            {"usage_reporting": {"Enabled": "no"}},
+            {"usage_reporting": {"disabled": True}},
+            {"usage_reporting": {"enabled": True, "disabled": "yes"}},
+            {"usage_reporting": True, "usageReporting": False},
+        )
+        for settings in cases:
+            with self.subTest(settings=settings):
+                with open(self.settingsFile, "w") as f:
+                    json.dump(settings, f)
+
+                client = buildClient(loadSettings(self.settingsFile, self.log), self.log)
+                try:
+                    self.assertFalse(client.enabled)
+                finally:
+                    client.close()
+                self.assertNotIn(FIRST_RUN_NOTICE, self.logged)
+
+    def test_near_miss_names_that_say_on_are_not_an_opt_out(self):
+        cases = (
+            {"usage-reporting": {"enabled": True}},
+            {"usageReporting": "on"},
+            {"usage_reporting": {"enabled": True, "enable": "yes"}},
+            {"usage_reporting": {"enabled": True, "disabled": False}},
+            {"usage_reporting": {"enabled": True, "disabled": "no"}},
+        )
+        for settings in cases:
+            with self.subTest(settings=settings):
+                with open(self.settingsFile, "w") as f:
+                    json.dump(settings, f)
+
+                client = buildClient(loadSettings(self.settingsFile, self.log), self.log)
+                try:
+                    self.assertTrue(client.enabled)
+                finally:
+                    client.close()
+
+    def test_a_first_run_over_a_near_miss_opt_out_writes_the_real_switch_off(self):
+        with open(self.settingsFile, "w") as f:
+            json.dump({"usage-reporting": {"enabled": False}}, f)
+
+        loadSettings(self.settingsFile, self.log)
+        client = buildClient(loadSettings(self.settingsFile, self.log), self.log)
+        try:
+            self.assertFalse(client.enabled)
+        finally:
+            client.close()
+
+        written = self.readSettingsFile()
+        self.assertIs(False, written["usage_reporting"]["enabled"])
+        self.assertEqual({"enabled": False}, written["usage-reporting"], "the operator's block is kept")
+        self.assertEqual([FIRST_RUN_NOTICE_OFF_BY_SETTINGS], self.logged)
 
     def test_enabled_fails_closed(self):
         # enabled used to go through bool(), so the string "false" turned reporting on;

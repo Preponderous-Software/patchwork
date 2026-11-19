@@ -362,7 +362,10 @@ For both variables, case and surrounding whitespace are ignored, and a blank val
 Every switch fails closed. In `settings.json`, only `true` (or the string `"true"`, `"on"`, `"yes"`
 or `"1"`) reports; `false`, `"false"`, `"off"`, `0`, `""`, `null` or a typo all keep reporting off.
 A `usage_reporting` entry that is not an object, such as `"usage_reporting": false`, is read as the
-switch itself and is never overwritten.
+switch itself and is never overwritten. An opt-out written under another spelling also counts as
+off: a block named `usage-reporting`, `usageReporting` or `UsageReporting`, an `enable`/`Enabled`
+switch that is not clearly on, or `"disabled": true`; the first run then writes
+`"usage_reporting": {"enabled": false}` next to it.
 
 The environment variables win over `settings.json`. `endpoint` selects the trace server and `key`
 the key reports are sent with; the `PATCHWORK_USAGE_REPORTING_KEY` environment variable, when
